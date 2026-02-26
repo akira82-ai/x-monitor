@@ -294,9 +294,16 @@ def create_layout(state: AppState, config: Config) -> Layout:
         wrap_lines=True,
     )
 
-    # Combine main content and details in horizontal split
+    # Combine main content and details in horizontal split with white separator
     content_area = VSplit([
         main_content,
+        # White vertical separator line
+        Window(
+            content=FormattedTextControl(lambda: "│"),
+            style='class:vseparator',
+            width=D.exact(1),
+            dont_extend_height=True
+        ),
         details_panel,
     ])
 
@@ -402,6 +409,7 @@ def create_style() -> Style:
         'separator': 'dim',
         'footer': 'dim',
         'selected': 'reverse',  # Highlight selected row
+        'vseparator': 'fg:white',  # White vertical separator between list and details
     })
 
 
