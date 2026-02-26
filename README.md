@@ -125,7 +125,7 @@ persist_state = true
 max_saved_tweets = 1000
 
 [users]
-handles = ["karpathy", "suhail", "another_user"]
+handles = ["karpathy", "dotey", "op7418", "chengfeng240928", "bcherny", "lijigang", "123olp", "AI_Whisper_X"]
 
 [notification]
 enable = true
