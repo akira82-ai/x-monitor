@@ -301,8 +301,7 @@ def create_layout(state: AppState, config: Config) -> Layout:
         Window(
             content=FormattedTextControl(lambda: "│"),
             style='class:vseparator',
-            width=D.exact(1),
-            dont_extend_height=True
+            width=D.exact(1)
         ),
         details_panel,
     ])
