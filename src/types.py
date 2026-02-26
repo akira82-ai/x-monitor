@@ -137,16 +137,17 @@ class AppState:
         if self.selected_index < len(self.tweets) - 1:
             self.selected_index += 1
             # 自动翻页
-            if self.selected_index >= (self.current_page + 1) * self.page_size:
-                self.current_page += 1
+            if self.page_size > 0 and self.selected_index >= (self.current_page + 1) * self.page_size:
+                max_page = max(0, (len(self.tweets) - 1) // self.page_size)
+                self.current_page = min(self.current_page + 1, max_page)
 
     def select_previous(self) -> None:
         """Select the previous tweet."""
         if self.selected_index > 0:
             self.selected_index -= 1
             # 自动翻页
-            if self.selected_index < self.current_page * self.page_size:
-                self.current_page -= 1
+            if self.page_size > 0 and self.selected_index < self.current_page * self.page_size:
+                self.current_page = max(self.current_page - 1, 0)
 
     def select_first(self) -> None:
         """Select the first tweet."""
@@ -174,7 +175,7 @@ class AppState:
         """Go to previous page."""
         if self.current_page > 0:
             self.current_page -= 1
-            self.selected_index = self.current_page * self.page_size
+            self.selected_index = max(0, min(self.current_page * self.page_size, len(self.tweets) - 1))
 
     def update_page_size(self, viewport_height: int) -> None:
         """Update page size based on viewport height."""
