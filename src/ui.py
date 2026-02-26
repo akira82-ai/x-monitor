@@ -303,7 +303,7 @@ def create_layout(state: AppState, config: Config) -> Layout:
     # Footer (keybindings)
     footer = Window(
         content=FormattedTextControl(
-            lambda: "Q:退出  R:刷新  Space:暂停  ↑↓:选择  N/P:翻页  g/G:首尾"
+            lambda: "Q:退出  R:刷新  Space:暂停  ↑↓:选择  ⬅️➡️:翻页  g/G:首尾"
         ),
         height=D.exact(1),
         style='class:footer',
@@ -356,7 +356,7 @@ def create_key_bindings(state: AppState, refresh_callback: Callable) -> KeyBindi
         state.mark_selected_as_read()
         event.app.invalidate()
 
-    @kb.add('n')
+    @kb.add('right')
     @kb.add('pagedown')
     def _(event):
         """Next page."""
@@ -364,7 +364,7 @@ def create_key_bindings(state: AppState, refresh_callback: Callable) -> KeyBindi
         state.mark_selected_as_read()
         event.app.invalidate()
 
-    @kb.add('p')
+    @kb.add('left')
     @kb.add('pageup')
     def _(event):
         """Previous page."""

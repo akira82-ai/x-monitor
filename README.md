@@ -106,8 +106,8 @@ python3 main.py --help
 | `Space` | Pause/Resume monitoring |
 | `↓` / `J` | Move down (marks current tweet as read) |
 | `↑` / `K` | Move up (marks current tweet as read) |
-| `N` / `PageDown` | Next page |
-| `P` / `PageUp` | Previous page |
+| `→` / `PageDown` | Next page |
+| `←` / `PageUp` | Previous page |
 | `G` | Jump to bottom |
 | `g` | Jump to top |
 
