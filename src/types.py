@@ -157,14 +157,18 @@ class AppState:
         """Select the last tweet."""
         if self.tweets:
             self.selected_index = len(self.tweets) - 1
-            self.current_page = self.selected_index // self.page_size
+            # 确保页码不超过最大值
+            max_page = max(0, (len(self.tweets) - 1) // self.page_size)
+            self.current_page = min(self.selected_index // self.page_size, max_page)
 
     def next_page(self) -> None:
         """Go to next page."""
-        max_page = (len(self.tweets) - 1) // self.page_size if self.tweets else 0
+        if not self.tweets:
+            return
+        max_page = (len(self.tweets) - 1) // self.page_size
         if self.current_page < max_page:
             self.current_page += 1
-            self.selected_index = self.current_page * self.page_size
+            self.selected_index = min(self.current_page * self.page_size, len(self.tweets) - 1)
 
     def prev_page(self) -> None:
         """Go to previous page."""
@@ -179,6 +183,9 @@ class AppState:
             # 调整当前页码，确保选中项仍然可见
             if self.tweets:
                 self.current_page = self.selected_index // self.page_size
+                # 确保 current_page 不超过最大页码
+                max_page = max(0, (len(self.tweets) - 1) // self.page_size)
+                self.current_page = min(self.current_page, max_page)
 
     @property
     def total_pages(self) -> int:
@@ -193,7 +200,8 @@ class AppState:
         self.update_page_size(viewport_height)
         # 确保选中项在当前页
         if self.tweets:
-            self.current_page = self.selected_index // self.page_size
+            max_page = max(0, (len(self.tweets) - 1) // self.page_size)
+            self.current_page = min(self.selected_index // self.page_size, max_page)
 
     def reset_new_count(self) -> None:
         """Reset the new tweets counter."""
