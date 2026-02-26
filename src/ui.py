@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Callable
 from wcwidth import wcswidth
 
-from prompt_toolkit.application import Application
+from prompt_toolkit.application import Application, run_in_terminal
 from prompt_toolkit.layout import Layout, HSplit, VSplit, Window, Dimension as D
 from prompt_toolkit.layout.controls import UIControl, UIContent, FormattedTextControl
 from prompt_toolkit.formatted_text import FormattedText
@@ -31,6 +31,20 @@ class TweetTableControl(UIControl):
         # 更新页面大小
         self.state.update_page_size(height)
 
+        # Apply filters to get visible tweets
+        visible_tweets_all = self.state.tweets
+
+        # Apply keyword filter
+        if self.state.filter_keyword:
+            keyword = self.state.filter_keyword.lower()
+            visible_tweets_all = [t for t in visible_tweets_all
+                                  if self.state.filter_keyword.lower() in t.content.lower()]
+
+        # Apply user filter
+        if self.state.filter_user:
+            visible_tweets_all = [t for t in visible_tweets_all
+                                  if t.author == self.state.filter_user]
+
         # 固定列宽：User(16) + Date(9) + Separator(3) + 空格(2) = 30
         # Content 列自适应填充剩余空间
         user_width = 16
@@ -39,13 +53,15 @@ class TweetTableControl(UIControl):
         fixed_width = user_width + date_width + separator_width + 2  # 包括空格
         content_width = max(width - fixed_width, 20)  # 使用实际可用宽度
 
-        # 计算当前页的推文范围
+        # 计算当前页的推文范围（基于过滤后的结果）
+        total_filtered = len(visible_tweets_all)
         start_idx = self.state.current_page * self.state.page_size
-        end_idx = min(start_idx + self.state.page_size, len(self.state.tweets))
-        visible_tweets = self.state.tweets[start_idx:end_idx]
+        end_idx = min(start_idx + self.state.page_size, total_filtered)
+        visible_tweets = visible_tweets_all[start_idx:end_idx]
 
         for i, tweet in enumerate(visible_tweets):
-            actual_index = start_idx + i
+            # Find the actual index in the original tweets list
+            actual_index = self.state.tweets.index(tweet)
             # Determine style based on selection
             style = 'class:selected' if actual_index == self.state.selected_index else ''
 
@@ -169,6 +185,12 @@ class TweetDetailsControl(UIControl):
             for line in content_lines:
                 lines.append(FormattedText([('', ' ' + line)]))
 
+        # Apply scroll offset
+        offset = self.state.details_scroll_offset
+        if offset > 0:
+            # Skip lines from the top based on offset
+            lines = lines[offset:]
+
         # 填充剩余空间
         while len(lines) < height:
             lines.append(FormattedText([('', '')]))
@@ -185,6 +207,21 @@ class TweetDetailsControl(UIControl):
 def get_status_text(state: AppState) -> str:
     """Generate status bar text."""
     status_icon = "⏸" if state.paused else "▶"
+
+    # Error message (display for 5 seconds)
+    if state.error_message and state.error_timestamp:
+        from datetime import datetime, timezone, timedelta
+        now = datetime.now(timezone.utc)
+        if (now - state.error_timestamp) < timedelta(seconds=5):
+            return f"❌ 错误: {state.error_message}"
+        else:
+            # Clear error after 5 seconds
+            state.error_message = None
+            state.error_timestamp = None
+
+    # Loading indicator
+    if state.is_loading:
+        return "⏳ 加载中..."
 
     new_count = f"🔔 {state.new_tweets_count} 条新 • " if state.new_tweets_count > 0 else ""
     total = f"{len(state.tweets)} 条"
@@ -212,7 +249,14 @@ def get_status_text(state: AppState) -> str:
             hours = int(delta.total_seconds() / 3600)
             last_update = f" • {hours}小时前"
 
-    return f"{status_icon} • {new_count}{total}{page_info}{last_update}"
+    # Filter indicators
+    filter_info = ""
+    if state.filter_keyword:
+        filter_info += f" [过滤关键词: {state.filter_keyword}]"
+    if state.filter_user:
+        filter_info += f" [用户: @{state.filter_user}]"
+
+    return f"{status_icon} • {new_count}{total}{page_info}{last_update}{filter_info}"
 
 
 def create_layout(state: AppState, config: Config) -> Layout:
@@ -306,7 +350,7 @@ def create_layout(state: AppState, config: Config) -> Layout:
     # Footer (keybindings)
     footer = Window(
         content=FormattedTextControl(
-            lambda: "Q:退出  R:刷新  Space:暂停  ↑↓:选择  ←→:翻页  g/G:首尾"
+            lambda: "Q:退出  R:刷新  Space:暂停  ↑↓:选择  ←→:翻页  g/G:首尾  /:搜索  u:用户过滤  o:打开URL  Ctrl+↑↓:滚动详情  Ctrl+R:重载配置"
         ),
         height=D.exact(1),
         style='class:footer',
@@ -325,7 +369,7 @@ def create_layout(state: AppState, config: Config) -> Layout:
     return Layout(root_container)
 
 
-def create_key_bindings(state: AppState, refresh_callback: Callable) -> KeyBindings:
+def create_key_bindings(state: AppState, refresh_callback: Callable, monitor=None) -> KeyBindings:
     """Create keyboard shortcuts."""
     kb = KeyBindings()
 
@@ -334,6 +378,7 @@ def create_key_bindings(state: AppState, refresh_callback: Callable) -> KeyBindi
     def _(event):
         """Move down."""
         state.select_next()
+        state.details_scroll_offset = 0  # Reset scroll offset
         state.mark_selected_as_read()
         event.app.invalidate()
 
@@ -342,6 +387,7 @@ def create_key_bindings(state: AppState, refresh_callback: Callable) -> KeyBindi
     def _(event):
         """Move up."""
         state.select_previous()
+        state.details_scroll_offset = 0  # Reset scroll offset
         state.mark_selected_as_read()
         event.app.invalidate()
 
@@ -349,6 +395,7 @@ def create_key_bindings(state: AppState, refresh_callback: Callable) -> KeyBindi
     def _(event):
         """Jump to top."""
         state.select_first()
+        state.details_scroll_offset = 0  # Reset scroll offset
         state.mark_selected_as_read()
         event.app.invalidate()
 
@@ -356,6 +403,7 @@ def create_key_bindings(state: AppState, refresh_callback: Callable) -> KeyBindi
     def _(event):
         """Jump to bottom."""
         state.select_last()
+        state.details_scroll_offset = 0  # Reset scroll offset
         state.mark_selected_as_read()
         event.app.invalidate()
 
@@ -364,6 +412,7 @@ def create_key_bindings(state: AppState, refresh_callback: Callable) -> KeyBindi
     def _(event):
         """Next page."""
         state.next_page()
+        state.details_scroll_offset = 0  # Reset scroll offset
         state.mark_selected_as_read()
         event.app.invalidate()
 
@@ -372,6 +421,7 @@ def create_key_bindings(state: AppState, refresh_callback: Callable) -> KeyBindi
     def _(event):
         """Previous page."""
         state.prev_page()
+        state.details_scroll_offset = 0  # Reset scroll offset
         state.mark_selected_as_read()
         event.app.invalidate()
 
@@ -394,6 +444,73 @@ def create_key_bindings(state: AppState, refresh_callback: Callable) -> KeyBindi
         state.paused = not state.paused
         event.app.invalidate()
 
+    @kb.add('/')
+    def _(event):
+        """Keyword search/filter."""
+        def do_search():
+            # This runs outside the prompt_toolkit context
+            try:
+                result = input('搜索关键词 (留空清除过滤): ')
+                state.filter_keyword = result if result else None
+                state.current_page = 0
+                state.selected_index = 0
+            except (EOFError, KeyboardInterrupt):
+                pass
+
+        # Temporarily suspend the TUI and run in normal terminal mode
+        run_in_terminal(lambda: do_search())
+
+    @kb.add('u')
+    def _(event):
+        """Filter by current user."""
+        if state.filter_user:
+            # Clear filter
+            state.filter_user = None
+            state.status_message = "已清除用户过滤"
+        else:
+            # Set filter to current user
+            if state.selected_tweet:
+                state.filter_user = state.selected_tweet.author
+                state.status_message = f"仅显示 @{state.filter_user} 的推文"
+            state.current_page = 0  # Reset to first page
+        event.app.invalidate()
+
+    @kb.add('o')
+    def _(event):
+        """Open URL in browser."""
+        import webbrowser
+        if state.selected_tweet:
+            url = f'https://x.com/{state.selected_tweet.author}/status/{state.selected_tweet.id}'
+            webbrowser.open(url)
+            state.status_message = f"已打开: {url}"
+        event.app.invalidate()
+
+    @kb.add('c-down')
+    def _(event):
+        """Scroll details panel down."""
+        state.details_scroll_offset += 1
+        event.app.invalidate()
+
+    @kb.add('c-up')
+    def _(event):
+        """Scroll details panel up."""
+        state.details_scroll_offset = max(0, state.details_scroll_offset - 1)
+        event.app.invalidate()
+
+    @kb.add('c-r')
+    @kb.add('f5')
+    def _(event):
+        """Reload configuration."""
+        if monitor:
+            try:
+                monitor.reload_config()
+                state.status_message = "配置已重载"
+            except Exception as e:
+                state.status_message = f"重载失败: {e}"
+        else:
+            state.status_message = "无法重载配置 (monitor 未初始化)"
+        event.app.invalidate()
+
     return kb
 
 
@@ -412,6 +529,7 @@ def create_style() -> Style:
 async def poll_tweets_background(state: AppState, config: Config, app: Application, refresh_callback: Callable):
     """Background task for polling tweets."""
     import time
+    from datetime import datetime, timezone
     last_poll_time = time.time() - config.general.poll_interval_sec  # 立即触发一次轮询
 
     while True:
@@ -426,8 +544,25 @@ async def poll_tweets_background(state: AppState, config: Config, app: Applicati
 
             # 检查是否暂停，如果暂停则跳过这次轮询但更新时间
             if not state.paused:
-                # Call the refresh callback
-                await refresh_callback()
+                # Set loading state
+                state.is_loading = True
+                app.invalidate()
+
+                # Clear any previous error
+                state.error_message = None
+                state.error_timestamp = None
+
+                try:
+                    # Call the refresh callback
+                    await refresh_callback()
+                except Exception as e:
+                    # Set error state
+                    state.error_message = str(e)
+                    state.error_timestamp = datetime.now(timezone.utc)
+                finally:
+                    # Clear loading state
+                    state.is_loading = False
+
                 # Trigger UI refresh
                 app.invalidate()
 
@@ -438,6 +573,9 @@ async def poll_tweets_background(state: AppState, config: Config, app: Applicati
             break
         except Exception as e:
             # Silent error handling - continue polling
+            state.error_message = str(e)
+            state.error_timestamp = datetime.now(timezone.utc)
+            state.is_loading = False
             await asyncio.sleep(5)  # Wait before retry
             last_poll_time = time.time() - config.general.poll_interval_sec  # 立即重试
 
@@ -452,13 +590,13 @@ async def update_ui_background(app: Application):
             break
 
 
-async def run_ui(config: Config, state: AppState, refresh_callback: Callable) -> None:
+async def run_ui(config: Config, state: AppState, refresh_callback: Callable, monitor=None) -> None:
     """Run the TUI application."""
 
     # Create application
     app = Application(
         layout=create_layout(state, config),
-        key_bindings=create_key_bindings(state, refresh_callback),
+        key_bindings=create_key_bindings(state, refresh_callback, monitor),
         style=create_style(),
         full_screen=True,
         mouse_support=False,  # Keyboard only

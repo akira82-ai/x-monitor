@@ -164,3 +164,23 @@ class Monitor:
         """Reset the monitor state."""
         self.state.clear()
         self.state.status_message = "Reset"
+
+    def reload_config(self, path: Optional[str] = None) -> None:
+        """Reload configuration from file.
+
+        Args:
+            path: Optional path to config file. If not provided, uses the default paths.
+        """
+        from .config import Config
+
+        # Load the new config
+        new_config = Config.load(path)
+
+        # Update the config
+        self.config = new_config
+
+        # Update the fetcher with new nitter instance
+        self.fetcher = TweetFetcher(new_config.general.nitter_instance)
+
+        # Update the notifier with new config
+        self.notifier = Notifier(new_config)

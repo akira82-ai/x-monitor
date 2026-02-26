@@ -106,6 +106,18 @@ class AppState:
     status_message: str = "Initializing..."
     new_tweets_count: int = 0
 
+    # Filter states
+    filter_keyword: Optional[str] = None  # Keyword filter for tweets
+    filter_user: Optional[str] = None  # User filter (author)
+
+    # Details panel scroll
+    details_scroll_offset: int = 0  # Scroll offset for details panel
+
+    # Loading and error states
+    is_loading: bool = False  # Loading indicator
+    error_message: Optional[str] = None  # Error message to display
+    error_timestamp: Optional[datetime] = None  # When the error occurred
+
     def add_tweet(self, tweet: Tweet) -> bool:
         """Add a tweet and return True if it's new."""
         if tweet.id in self.known_ids:
@@ -257,6 +269,9 @@ class AppState:
             "last_poll": self.last_poll.isoformat() if self.last_poll else None,
             "status_message": self.status_message,
             "new_tweets_count": self.new_tweets_count,
+            "filter_keyword": self.filter_keyword,
+            "filter_user": self.filter_user,
+            "details_scroll_offset": self.details_scroll_offset,
         }
 
     @classmethod
@@ -271,6 +286,9 @@ class AppState:
         state.paused = data.get("paused", False)
         state.status_message = data.get("status_message", "Initializing...")
         state.new_tweets_count = data.get("new_tweets_count", 0)
+        state.filter_keyword = data.get("filter_keyword")
+        state.filter_user = data.get("filter_user")
+        state.details_scroll_offset = data.get("details_scroll_offset", 0)
 
         if data.get("last_poll"):
             from datetime import datetime, timezone

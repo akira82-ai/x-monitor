@@ -82,7 +82,7 @@ async def main_async() -> None:
 
     # Run the UI
     try:
-        await run_ui(config, state, do_refresh)
+        await run_ui(config, state, do_refresh, monitor)
     finally:
         await monitor.stop()
 
