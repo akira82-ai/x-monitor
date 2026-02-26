@@ -123,6 +123,8 @@ class AppState:
         for tweet in tweets:
             if self.add_tweet(tweet):
                 new_count += 1
+        # 确保页码在有效范围内（因为推文数量可能增加了）
+        self._clamp_current_page()
         return new_count
 
     @property
@@ -181,28 +183,42 @@ class AppState:
         """Update page size based on viewport height."""
         if viewport_height > 0:
             self.page_size = viewport_height
-            # 调整当前页码，确保选中项仍然可见
-            if self.tweets:
-                self.current_page = self.selected_index // self.page_size
-                # 确保 current_page 不超过最大页码
-                max_page = max(0, (len(self.tweets) - 1) // self.page_size)
-                self.current_page = min(self.current_page, max_page)
+            # 确保页码和选中项在有效范围内
+            self._clamp_current_page()
 
     @property
     def total_pages(self) -> int:
         """Get total number of pages."""
-        if not self.tweets:
+        if not self.tweets or self.page_size <= 0:
             return 0
         return (len(self.tweets) - 1) // self.page_size + 1
+
+    def _clamp_current_page(self) -> None:
+        """确保 current_page 在有效范围内."""
+        if not self.tweets or self.page_size <= 0:
+            self.current_page = 0
+            return
+
+        max_page = max(0, (len(self.tweets) - 1) // self.page_size)
+        self.current_page = max(0, min(self.current_page, max_page))
+
+        # 同时确保 selected_index 在有效范围内
+        if self.tweets:
+            self.selected_index = max(0, min(self.selected_index, len(self.tweets) - 1))
+        else:
+            self.selected_index = 0
 
     def ensure_visible(self, viewport_height: int) -> None:
         """Ensure selected item is visible in viewport."""
         # 更新页面大小
         self.update_page_size(viewport_height)
         # 确保选中项在当前页
-        if self.tweets:
-            max_page = max(0, (len(self.tweets) - 1) // self.page_size)
-            self.current_page = min(self.selected_index // self.page_size, max_page)
+        if self.tweets and self.page_size > 0:
+            target_page = self.selected_index // self.page_size
+            # 将当前页设置为选中项所在的页
+            self.current_page = target_page
+            # 再次验证以确保在有效范围内
+            self._clamp_current_page()
 
     def reset_new_count(self) -> None:
         """Reset the new tweets counter."""
@@ -259,4 +275,7 @@ class AppState:
         if data.get("last_poll"):
             from datetime import datetime, timezone
             state.last_poll = datetime.fromisoformat(data["last_poll"])
+
+        # 确保 current_page 和 selected_index 在有效范围内
+        state._clamp_current_page()
         return state
