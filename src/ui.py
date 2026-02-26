@@ -303,7 +303,7 @@ def create_layout(state: AppState, config: Config) -> Layout:
     # Footer (keybindings)
     footer = Window(
         content=FormattedTextControl(
-            lambda: "Q:退出  R:刷新  Space:暂停  ↑↓:选择  ⬅️➡️:翻页  g/G:首尾"
+            lambda: "Q:退出  R:刷新  Space:暂停  ↑↓:选择  ←→:翻页  g/G:首尾"
         ),
         height=D.exact(1),
         style='class:footer',
