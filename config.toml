@@ -8,7 +8,7 @@ poll_interval_sec = 60
 nitter_instance = "https://nitter.net"
 
 # Maximum number of tweets to keep per user
-max_tweets = 50
+max_tweets = 400
 
 [users]
 # List of Twitter handles to monitor (without @ symbol)

@@ -20,6 +20,7 @@ class Tweet:
     media: List[str] = field(default_factory=list)
     is_retweet: bool = False
     is_reply: bool = False
+    is_new: bool = True
 
     def format_timestamp(self) -> str:
         """Get a formatted timestamp string (date only)."""
@@ -73,6 +74,7 @@ class AppState:
             return False
 
         self.known_ids.add(tweet.id)
+        tweet.is_new = True  # 确保新推文标记为 True
         self.tweets.insert(0, tweet)
         self.new_tweets_count += 1
         return True
@@ -157,6 +159,20 @@ class AppState:
 
     def reset_new_count(self) -> None:
         """Reset the new tweets counter."""
+        self.new_tweets_count = 0
+
+    def mark_selected_as_read(self) -> None:
+        """将当前选中的推文标记为已读。"""
+        if 0 <= self.selected_index < len(self.tweets):
+            tweet = self.tweets[self.selected_index]
+            if tweet.is_new:
+                tweet.is_new = False
+                self.new_tweets_count = max(0, self.new_tweets_count - 1)
+
+    def mark_all_as_read(self) -> None:
+        """将所有推文标记为已读。"""
+        for tweet in self.tweets:
+            tweet.is_new = False
         self.new_tweets_count = 0
 
     def clear(self) -> None:

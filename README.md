@@ -6,6 +6,7 @@ X (Twitter) User Monitoring CLI Dashboard - A TUI application for monitoring Twi
 
 - **TUI Dashboard** - Clean terminal interface with minimal design
 - **Real-time Polling** - Configurable polling interval for new tweets
+- **New Tweet Indicators** - 🔔 marks unread tweets, cleared when you browse
 - **Multiple Users** - Monitor multiple Twitter handles simultaneously
 - **Notifications** - Terminal alerts for new tweets
 - **No API Keys** - Uses public Nitter RSS feeds
@@ -18,17 +19,20 @@ The interface uses clean lines and borders instead of color blocks:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ x-monitor - Twitter User Monitoring                         │
+│ x-monitor | ▶ • 🔔 4 条新 • 50 条 • 1/2 页 • 34秒前          │
 ├─────────────────────────────────────────────────────────────┤
-│ ▶ RUNNING • 📊 25 tweets • 🕐 14:32:15                      │
+│  User         Content                          Date         │
+│  @karpathy    🔔 Just shipped a new feature! 🚀   02-26     │
+│  @suhail      🔔 Working on AI research...        02-26     │
+│  @user        🔁 Retweeted something...          02-25     │
 ├─────────────────────────────────────────────────────────────┤
-│  User         Content                          Time         │
-│  @karpathy    Just shipped a new feature! 🚀   2h          │
-│  @suhail      Working on AI research...        5h          │
-├─────────────────────────────────────────────────────────────┤
-│ Q: Quit │ R: Refresh │ Space: Pause │ D: Details │ ...     │
+│ Q:退出  R:刷新  Space:暂停  ↑↓:选择  N/P:翻页  g/G:首尾    │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+**Legend:**
+- 🔔 = New/unread tweet
+- 🔁 = Retweet
 
 See [UI_DESIGN.md](UI_DESIGN.md) for detailed design documentation.
 
@@ -99,9 +103,10 @@ python3 main.py --help
 | `Q` | Quit |
 | `R` | Refresh tweets immediately |
 | `Space` | Pause/Resume monitoring |
-| `D` | Toggle details panel |
-| `↓` / `J` | Move down in tweet list |
-| `↑` / `K` | Move up in tweet list |
+| `↓` / `J` | Move down (marks current tweet as read) |
+| `↑` / `K` | Move up (marks current tweet as read) |
+| `N` / `PageDown` | Next page |
+| `P` / `PageUp` | Previous page |
 | `G` | Jump to bottom |
 | `g` | Jump to top |
 
@@ -113,7 +118,7 @@ Create a `config.toml` file:
 [general]
 poll_interval_sec = 60
 nitter_instance = "https://nitter.net"
-max_tweets = 50
+max_tweets = 400
 
 [users]
 handles = ["karpathy", "suhail", "another_user"]

@@ -49,7 +49,11 @@ class TweetTableControl(UIControl):
             style = 'class:selected' if actual_index == self.state.selected_index else ''
 
             # Format tweet row - 动态内容宽度
-            prefix = "🔁 " if tweet.is_retweet else ""
+            prefix = ""
+            if tweet.is_new:
+                prefix = "🔔 "
+            elif tweet.is_retweet:
+                prefix = "🔁 "
             # 使用 wcswidth 计算 emoji 的实际显示宽度
             prefix_display_width = wcswidth(prefix) if prefix and wcswidth(prefix) > 0 else 0
             # 从 content_width 中减去 prefix 的显示宽度
@@ -133,8 +137,13 @@ class TweetDetailsControl(UIControl):
                 lines.append(FormattedText([('', ' '.join(badges))]))
                 lines.append(FormattedText([('', '')]))
 
-            # 时间
-            lines.append(FormattedText([('', f'发布时间: {tweet.timestamp.strftime("%Y-%m-%d %H:%M:%S UTC")}')]))
+            # 时间 - 转换为本地时区
+            local_time = tweet.timestamp.astimezone().strftime("%Y-%m-%d %H:%M:%S")
+            lines.append(FormattedText([('', f'发布时间: {local_time}')]))
+
+            # URL - 紧跟在时间戳后面
+            x_url = f'https://x.com/{tweet.author}/status/{tweet.id}'
+            lines.append(FormattedText([('dim', f'URL: {x_url}')]))
             lines.append(FormattedText([('', '')]))
             lines.append(FormattedText([('', '---')]))
             lines.append(FormattedText([('', '')]))
@@ -158,11 +167,6 @@ class TweetDetailsControl(UIControl):
             for line in content_lines:
                 lines.append(FormattedText([('', line)]))
 
-            lines.append(FormattedText([('', '')]))
-            lines.append(FormattedText([('', '---')]))
-            lines.append(FormattedText([('', '')]))
-            lines.append(FormattedText([('dim', f'URL: {tweet.url}')]))
-
         # 填充剩余空间
         while len(lines) < height:
             lines.append(FormattedText([('', '')]))
@@ -180,7 +184,7 @@ def get_status_text(state: AppState) -> str:
     """Generate status bar text."""
     status_icon = "⏸" if state.paused else "▶"
 
-    new_count = f"🔔 {state.new_tweets_count} • " if state.new_tweets_count > 0 else ""
+    new_count = f"🔔 {state.new_tweets_count} 条新 • " if state.new_tweets_count > 0 else ""
     total = f"{len(state.tweets)} 条"
 
     # 页码信息
@@ -327,6 +331,7 @@ def create_key_bindings(state: AppState, refresh_callback: Callable) -> KeyBindi
     def _(event):
         """Move down."""
         state.select_next()
+        state.mark_selected_as_read()
         event.app.invalidate()
 
     @kb.add('k')
@@ -334,18 +339,21 @@ def create_key_bindings(state: AppState, refresh_callback: Callable) -> KeyBindi
     def _(event):
         """Move up."""
         state.select_previous()
+        state.mark_selected_as_read()
         event.app.invalidate()
 
     @kb.add('g')
     def _(event):
         """Jump to top."""
         state.select_first()
+        state.mark_selected_as_read()
         event.app.invalidate()
 
     @kb.add('G')
     def _(event):
         """Jump to bottom."""
         state.select_last()
+        state.mark_selected_as_read()
         event.app.invalidate()
 
     @kb.add('n')
@@ -353,6 +361,7 @@ def create_key_bindings(state: AppState, refresh_callback: Callable) -> KeyBindi
     def _(event):
         """Next page."""
         state.next_page()
+        state.mark_selected_as_read()
         event.app.invalidate()
 
     @kb.add('p')
@@ -360,6 +369,7 @@ def create_key_bindings(state: AppState, refresh_callback: Callable) -> KeyBindi
     def _(event):
         """Previous page."""
         state.prev_page()
+        state.mark_selected_as_read()
         event.app.invalidate()
 
     @kb.add('q')

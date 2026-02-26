@@ -56,7 +56,12 @@ class Monitor:
         # Trim to max tweets
         max_tweets = self.config.general.max_tweets
         if len(self.state.tweets) > max_tweets:
+            # Count how many new tweets are being removed
+            removed_tweets = self.state.tweets[max_tweets:]
+            removed_new_count = sum(1 for t in removed_tweets if t.is_new)
             self.state.tweets = self.state.tweets[:max_tweets]
+            # Adjust the counter
+            self.state.new_tweets_count = max(0, self.state.new_tweets_count - removed_new_count)
 
         # Sort tweets by timestamp (newest first)
         self.state.tweets.sort(key=lambda t: t.timestamp, reverse=True)
