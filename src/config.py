@@ -12,6 +12,9 @@ class GeneralConfig:
     poll_interval_sec: int = 60
     nitter_instance: str = "https://nitter.net"
     max_tweets: int = 50
+    filter_replies: bool = True  # Filter out reply tweets
+    persist_state: bool = True   # 是否持久化状态
+    max_saved_tweets: int = 1000  # 最大保存推文数
 
     def validate(self) -> None:
         """Validate general configuration."""
@@ -111,6 +114,9 @@ class Config:
                 "poll_interval_sec": self.general.poll_interval_sec,
                 "nitter_instance": self.general.nitter_instance,
                 "max_tweets": self.general.max_tweets,
+                "filter_replies": self.general.filter_replies,
+                "persist_state": self.general.persist_state,
+                "max_saved_tweets": self.general.max_saved_tweets,
             },
             "users": {
                 "handles": self.users.handles,

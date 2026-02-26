@@ -12,6 +12,7 @@ X (Twitter) User Monitoring CLI Dashboard - A TUI application for monitoring Twi
 - **No API Keys** - Uses public Nitter RSS feeds
 - **Simple & Fast** - Python implementation with minimal dependencies
 - **Keyboard Shortcuts** - Always visible at the bottom of the screen
+- **State Persistence** - Automatically saves tweet history between sessions
 
 ## UI Design
 
@@ -119,6 +120,9 @@ Create a `config.toml` file:
 poll_interval_sec = 60
 nitter_instance = "https://nitter.net"
 max_tweets = 400
+filter_replies = true
+persist_state = true
+max_saved_tweets = 1000
 
 [users]
 handles = ["karpathy", "suhail", "another_user"]
@@ -140,10 +144,23 @@ auto_scroll = true
 - `poll_interval_sec`: How often to check for new tweets (min: 10)
 - `nitter_instance`: Which Nitter mirror to use
 - `max_tweets`: Maximum tweets to keep in memory
+- `filter_replies`: Filter out reply tweets (true = show only original tweets and retweets)
+- `persist_state`: Enable state persistence between sessions
+- `max_saved_tweets`: Maximum tweets to save to disk
 - `handles`: List of Twitter usernames (without @)
 - `enable`: Enable notifications
 - `sound`: Terminal bell on new tweets
 - `flash`: Visual alert on new tweets
+
+### State Persistence
+
+x-monitor automatically saves your tweet history to disk. When you restart the app:
+
+- Previously loaded tweets are restored
+- "New tweet" indicators are preserved
+- History is saved to `~/.config/x-monitor/state.json` (or `./state.json`)
+
+You can disable this feature by setting `persist_state = false` in your config.
 
 ## Nitter Instances
 
@@ -203,11 +220,12 @@ This generates fake tweets for UI testing.
 x-monitor/
 ├── src/
 │   ├── __init__.py
-│   ├── config.py      # TOML configuration
-│   ├── types.py       # Data structures
-│   ├── fetcher.py     # RSS fetching (feedparser + httpx)
-│   ├── monitor.py     # Polling logic (asyncio)
-│   └── ui.py          # TUI (prompt_toolkit)
+│   ├── config.py        # TOML configuration
+│   ├── types.py         # Data structures
+│   ├── fetcher.py       # RSS fetching (feedparser + httpx)
+│   ├── monitor.py       # Polling logic (asyncio)
+│   ├── state_manager.py # State persistence
+│   └── ui.py            # TUI (prompt_toolkit)
 ├── config.toml
 ├── main.py
 ├── pyproject.toml

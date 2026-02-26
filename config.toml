@@ -10,6 +10,15 @@ nitter_instance = "https://nitter.net"
 # Maximum number of tweets to keep per user
 max_tweets = 400
 
+# Filter out reply tweets (true = show only original tweets and retweets)
+filter_replies = true
+
+# Persist state between sessions (true = save and restore tweet history)
+persist_state = true
+
+# Maximum tweets to save to disk (across all users)
+max_saved_tweets = 1000
+
 [users]
 # List of Twitter handles to monitor (without @ symbol)
 handles = ["karpathy", "dotey", "op7418"]

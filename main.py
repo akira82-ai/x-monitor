@@ -2,10 +2,12 @@
 
 import argparse
 import asyncio
+import atexit
 from pathlib import Path
 
 from src.config import Config
 from src.monitor import Monitor
+from src.state_manager import StateManager
 from src.types import AppState
 from src.ui import run_ui
 
@@ -40,9 +42,28 @@ async def main_async() -> None:
     # Load configuration
     config = Config.load(args.config)
 
-    # Create state and monitor
-    state = AppState()
-    monitor = Monitor(config, state)
+    # 初始化状态管理器
+    state_manager = StateManager(max_tweets=config.general.max_saved_tweets)
+
+    # 尝试加载保存的状态
+    if config.general.persist_state:
+        saved_state = state_manager.load()
+        if saved_state:
+            state = saved_state
+            print(f"Restored {len(state.tweets)} tweets from previous session")
+        else:
+            state = AppState()
+    else:
+        state = AppState()
+
+    # 注册退出时保存状态
+    if config.general.persist_state:
+        def save_on_exit():
+            state_manager.save(state)
+        atexit.register(save_on_exit)
+
+    # Create monitor
+    monitor = Monitor(config, state, state_manager)
 
     # Create refresh callback
     async def do_refresh() -> None:

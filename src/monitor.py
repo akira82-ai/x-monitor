@@ -10,13 +10,21 @@ from .types import AppState
 from .notifier import Notifier
 
 
+# Import StateManager for type hints
+try:
+    from .state_manager import StateManager
+except ImportError:
+    StateManager = None  # type: ignore
+
+
 class Monitor:
     """Main monitor that coordinates polling and state management."""
 
-    def __init__(self, config: Config, state: AppState):
+    def __init__(self, config: Config, state: AppState, state_manager: Optional["StateManager"] = None):
         """Initialize the monitor with configuration and state."""
         self.config = config
         self.state = state
+        self.state_manager = state_manager
         self.fetcher = TweetFetcher(config.general.nitter_instance)
         self.notifier = Notifier(config)
         self._running = False
@@ -42,6 +50,11 @@ class Monitor:
         for handle in self.config.users.handles:
             try:
                 tweets = await self.fetcher.fetch_tweets(handle)
+
+                # 根据配置过滤推文
+                if self.config.general.filter_replies:
+                    # 过滤掉回复推文
+                    tweets = [t for t in tweets if not t.is_reply]
 
                 # Add tweets and notify for new ones
                 for tweet in tweets:
@@ -72,6 +85,10 @@ class Monitor:
             f"Last update: {self.state.last_poll.strftime('%H:%M:%S')} | "
             f"{len(self.state.tweets)} tweets"
         )
+
+        # 轮询后自动保存
+        if self.state_manager and self.config.general.persist_state:
+            self.state_manager.save(self.state)
 
         return total_new
 

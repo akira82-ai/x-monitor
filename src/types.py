@@ -54,6 +54,44 @@ class Tweet:
 
         return f"{self.content[:truncate_pos]}..."
 
+    def to_dict(self) -> dict:
+        """将 Tweet 转换为可序列化的字典."""
+        return {
+            "id": self.id,
+            "author": self.author,
+            "author_name": self.author_name,
+            "content": self.content,
+            "timestamp": self.timestamp.isoformat(),
+            "url": self.url,
+            "likes": self.likes,
+            "retweets": self.retweets,
+            "replies": self.replies,
+            "media": self.media,
+            "is_retweet": self.is_retweet,
+            "is_reply": self.is_reply,
+            "is_new": self.is_new,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Tweet":
+        """从字典创建 Tweet 对象."""
+        from datetime import datetime, timezone
+        return cls(
+            id=data["id"],
+            author=data["author"],
+            author_name=data["author_name"],
+            content=data["content"],
+            timestamp=datetime.fromisoformat(data["timestamp"]),
+            url=data["url"],
+            likes=data.get("likes"),
+            retweets=data.get("retweets"),
+            replies=data.get("replies"),
+            media=data.get("media", []),
+            is_retweet=data.get("is_retweet", False),
+            is_reply=data.get("is_reply", False),
+            is_new=data.get("is_new", False),
+        )
+
 
 @dataclass
 class AppState:
@@ -181,3 +219,35 @@ class AppState:
         self.known_ids.clear()
         self.selected_index = 0
         self.new_tweets_count = 0
+
+    def to_dict(self) -> dict:
+        """将 AppState 转换为可序列化的字典."""
+        return {
+            "tweets": [t.to_dict() for t in self.tweets],
+            "known_ids": list(self.known_ids),
+            "selected_index": self.selected_index,
+            "current_page": self.current_page,
+            "page_size": self.page_size,
+            "paused": self.paused,
+            "last_poll": self.last_poll.isoformat() if self.last_poll else None,
+            "status_message": self.status_message,
+            "new_tweets_count": self.new_tweets_count,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "AppState":
+        """从字典创建 AppState 对象."""
+        state = cls()
+        state.tweets = [Tweet.from_dict(t) for t in data.get("tweets", [])]
+        state.known_ids = set(data.get("known_ids", []))
+        state.selected_index = data.get("selected_index", 0)
+        state.current_page = data.get("current_page", 0)
+        state.page_size = data.get("page_size", 10)
+        state.paused = data.get("paused", False)
+        state.status_message = data.get("status_message", "Initializing...")
+        state.new_tweets_count = data.get("new_tweets_count", 0)
+
+        if data.get("last_poll"):
+            from datetime import datetime, timezone
+            state.last_poll = datetime.fromisoformat(data["last_poll"])
+        return state

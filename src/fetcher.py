@@ -91,6 +91,8 @@ class TweetFetcher:
 
                 # Check if retweet
                 is_retweet = "RT @" in content or content.startswith("RT @")
+                # Check if reply
+                is_reply = self._is_reply(entry)
 
                 tweet = Tweet(
                     id=tweet_id,
@@ -100,6 +102,7 @@ class TweetFetcher:
                     timestamp=timestamp,
                     url=url,
                     is_retweet=is_retweet,
+                    is_reply=is_reply,
                 )
                 tweets.append(tweet)
 
@@ -122,6 +125,34 @@ class TweetFetcher:
             elif not in_tag:
                 result.append(ch)
         return " ".join("".join(result).split())
+
+    def _is_reply(self, entry) -> bool:
+        """检测 RSS entry 是否为回复推文."""
+        # 方法1：检查 in-reply-to 字段（最可靠）
+        if entry.get('in-reply-to'):
+            return True
+
+        # 方法2：检查标签/分类
+        tags = entry.get('tags', [])
+        if tags:
+            for tag in tags:
+                if isinstance(tag, dict) and 'term' in tag:
+                    if 'reply' in tag['term'].lower():
+                        return True
+
+        # 方法3：内容模式检测（辅助，避免误判）
+        content = entry.get('description', '')
+        stripped = self._strip_html(content)
+
+        # 排除转推后，检查是否以 @ 开头
+        if not (stripped.startswith('RT @') or 'RT @' in stripped):
+            # 如果以 @ 开头且有多个 @mentions，很可能是回复
+            if stripped.startswith('@'):
+                mention_count = stripped.count('@')
+                if mention_count >= 2:
+                    return True
+
+        return False
 
     async def close(self) -> None:
         """Close the HTTP client."""
