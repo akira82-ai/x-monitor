@@ -46,6 +46,7 @@ class Monitor:
             return 0
 
         total_new = 0
+        new_tweets_list = []  # 跟踪新增推文
 
         for handle in self.config.users.handles:
             try:
@@ -60,6 +61,7 @@ class Monitor:
                 for tweet in tweets:
                     if self.state.add_tweet(tweet):
                         total_new += 1
+                        new_tweets_list.append(tweet)
                         self.notifier.notify(tweet)
 
             except Exception as e:
@@ -113,7 +115,12 @@ class Monitor:
 
         # 轮询后自动保存
         if self.state_manager and self.config.general.persist_state:
-            self.state_manager.save(self.state)
+            if self.config.general.incremental_save:
+                # 增量保存模式
+                self.state_manager.save_incremental(self.state, new_tweets_list)
+            else:
+                # 全量保存模式（向后兼容）
+                self.state_manager.save(self.state)
 
         return total_new
 
@@ -184,3 +191,15 @@ class Monitor:
 
         # Update the notifier with new config
         self.notifier = Notifier(new_config)
+
+    def cleanup_and_save(self) -> None:
+        """退出前保存状态（合并增量文件）."""
+        if not self.state_manager or not self.config.general.persist_state:
+            return
+
+        if self.config.general.incremental_save:
+            # 退出时强制合并增量文件
+            self.state_manager._merge_incremental(self.state)
+        else:
+            # 全量保存
+            self.state_manager.save(self.state)

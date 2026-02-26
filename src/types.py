@@ -109,6 +109,7 @@ class AppState:
     # Filter states
     filter_keyword: Optional[str] = None  # Keyword filter for tweets
     filter_user: Optional[str] = None  # User filter (author)
+    unfiltered_tweets: Optional[List[Tweet]] = None  # Backup of full list before filtering
 
     # Details panel scroll
     details_scroll_offset: int = 0  # Scroll offset for details panel
@@ -125,6 +126,11 @@ class AppState:
 
         self.known_ids.add(tweet.id)
         tweet.is_new = True  # 确保新推文标记为 True
+
+        # If filtering is active, also add to unfiltered_tweets
+        if self.unfiltered_tweets is not None:
+            self.unfiltered_tweets.insert(0, tweet)
+
         self.tweets.insert(0, tweet)
         self.new_tweets_count += 1
         return True
@@ -138,6 +144,51 @@ class AppState:
         # 确保页码在有效范围内（因为推文数量可能增加了）
         self._clamp_current_page()
         return new_count
+
+    def apply_keyword_filter(self, keyword: str) -> None:
+        """Apply keyword filter - overrides any existing filter."""
+        # Save full list if not already saved
+        if self.unfiltered_tweets is None:
+            self.unfiltered_tweets = self.tweets.copy()
+
+        # Clear existing user filter and apply keyword filter from full list
+        self.filter_user = None
+        self.filter_keyword = keyword
+        keyword_lower = keyword.lower()
+        self.tweets = [t for t in self.unfiltered_tweets if keyword_lower in t.content.lower()]
+
+        # Reset selection state
+        self.selected_index = 0
+        self.current_page = 0
+        self.details_scroll_offset = 0
+
+    def apply_user_filter(self, user: str) -> None:
+        """Apply user filter - overrides any existing filter."""
+        # Save full list if not already saved
+        if self.unfiltered_tweets is None:
+            self.unfiltered_tweets = self.tweets.copy()
+
+        # Clear existing keyword filter and apply user filter from full list
+        self.filter_keyword = None
+        self.filter_user = user
+        self.tweets = [t for t in self.unfiltered_tweets if t.author == user]
+
+        # Reset selection state
+        self.selected_index = 0
+        self.current_page = 0
+        self.details_scroll_offset = 0
+
+    def clear_filters(self) -> None:
+        """Clear all filters and restore the full tweet list."""
+        if self.unfiltered_tweets is not None:
+            self.tweets = self.unfiltered_tweets
+            self.unfiltered_tweets = None
+
+        self.filter_keyword = None
+        self.filter_user = None
+        self.selected_index = 0
+        self.current_page = 0
+        self.details_scroll_offset = 0
 
     @property
     def selected_tweet(self) -> Optional[Tweet]:
@@ -272,6 +323,7 @@ class AppState:
             "filter_keyword": self.filter_keyword,
             "filter_user": self.filter_user,
             "details_scroll_offset": self.details_scroll_offset,
+            # Note: unfiltered_tweets is not persisted (it's only used temporarily during filtering)
         }
 
     @classmethod
@@ -293,6 +345,9 @@ class AppState:
         if data.get("last_poll"):
             from datetime import datetime, timezone
             state.last_poll = datetime.fromisoformat(data["last_poll"])
+
+        # Reset unfiltered_tweets (filters are not restored from saved state)
+        state.unfiltered_tweets = None
 
         # 确保 current_page 和 selected_index 在有效范围内
         state._clamp_current_page()

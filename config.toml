@@ -19,6 +19,12 @@ persist_state = true
 # Maximum tweets to save to disk (across all users)
 max_saved_tweets = 1000
 
+# Incremental save (only save new tweets to reduce disk I/O)
+incremental_save = true
+
+# Merge incremental file into main file after this many new tweets
+merge_threshold = 50
+
 [users]
 # List of Twitter handles to monitor (without @ symbol)
 handles = ["karpathy", "dotey", "op7418", "chengfeng240928", "bcherny", "lijigang", "123olp", "AI_Whisper_X", "vista8"]

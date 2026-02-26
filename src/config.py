@@ -15,6 +15,8 @@ class GeneralConfig:
     filter_replies: bool = True  # Filter out reply tweets
     persist_state: bool = True   # 是否持久化状态
     max_saved_tweets: int = 1000  # 最大保存推文数
+    incremental_save: bool = True  # 是否使用增量保存
+    merge_threshold: int = 50  # 合并增量文件的阈值
 
     def validate(self) -> None:
         """Validate general configuration."""
@@ -117,6 +119,8 @@ class Config:
                 "filter_replies": self.general.filter_replies,
                 "persist_state": self.general.persist_state,
                 "max_saved_tweets": self.general.max_saved_tweets,
+                "incremental_save": self.general.incremental_save,
+                "merge_threshold": self.general.merge_threshold,
             },
             "users": {
                 "handles": self.users.handles,

@@ -31,19 +31,8 @@ class TweetTableControl(UIControl):
         # 更新页面大小
         self.state.update_page_size(height)
 
-        # Apply filters to get visible tweets
+        # state.tweets is already filtered, no need to filter here
         visible_tweets_all = self.state.tweets
-
-        # Apply keyword filter
-        if self.state.filter_keyword:
-            keyword = self.state.filter_keyword.lower()
-            visible_tweets_all = [t for t in visible_tweets_all
-                                  if self.state.filter_keyword.lower() in t.content.lower()]
-
-        # Apply user filter
-        if self.state.filter_user:
-            visible_tweets_all = [t for t in visible_tweets_all
-                                  if t.author == self.state.filter_user]
 
         # 固定列宽：User(16) + Date(9) + Separator(3) + 空格(2) = 30
         # Content 列自适应填充剩余空间
@@ -53,17 +42,17 @@ class TweetTableControl(UIControl):
         fixed_width = user_width + date_width + separator_width + 2  # 包括空格
         content_width = max(width - fixed_width, 20)  # 使用实际可用宽度
 
-        # 计算当前页的推文范围（基于过滤后的结果）
+        # 计算当前页的推文范围
         total_filtered = len(visible_tweets_all)
         start_idx = self.state.current_page * self.state.page_size
         end_idx = min(start_idx + self.state.page_size, total_filtered)
         visible_tweets = visible_tweets_all[start_idx:end_idx]
 
         for i, tweet in enumerate(visible_tweets):
-            # Find the actual index in the original tweets list
-            actual_index = self.state.tweets.index(tweet)
+            # Since tweets are already filtered, use the absolute index (start_idx + i)
+            absolute_index = start_idx + i
             # Determine style based on selection
-            style = 'class:selected' if actual_index == self.state.selected_index else ''
+            style = 'class:selected' if absolute_index == self.state.selected_index else ''
 
             # Format tweet row - 动态内容宽度
             prefix = ""
@@ -448,31 +437,36 @@ def create_key_bindings(state: AppState, refresh_callback: Callable, monitor=Non
     def _(event):
         """Keyword search/filter."""
         def do_search():
-            # This runs outside the prompt_toolkit context
             try:
                 result = input('搜索关键词 (留空清除过滤): ')
-                state.filter_keyword = result if result else None
-                state.current_page = 0
-                state.selected_index = 0
+
+                if result:
+                    # Apply keyword filter
+                    state.apply_keyword_filter(result)
+                else:
+                    # Clear all filters
+                    state.clear_filters()
+
+                state.status_message = f"关键词: {result}" if result else "已清除过滤"
             except (EOFError, KeyboardInterrupt):
                 pass
 
-        # Temporarily suspend the TUI and run in normal terminal mode
         run_in_terminal(lambda: do_search())
 
     @kb.add('u')
     def _(event):
         """Filter by current user."""
         if state.filter_user:
-            # Clear filter
-            state.filter_user = None
+            # Clear all filters
+            state.clear_filters()
             state.status_message = "已清除用户过滤"
         else:
             # Set filter to current user
             if state.selected_tweet:
-                state.filter_user = state.selected_tweet.author
-                state.status_message = f"仅显示 @{state.filter_user} 的推文"
-            state.current_page = 0  # Reset to first page
+                target_user = state.selected_tweet.author
+                state.apply_user_filter(target_user)
+                state.status_message = f"仅显示 @{target_user} 的推文"
+
         event.app.invalidate()
 
     @kb.add('o')

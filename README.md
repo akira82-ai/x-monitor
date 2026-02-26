@@ -18,6 +18,7 @@ X (Twitter) User Monitoring CLI Dashboard - A TUI application for monitoring Twi
 - **Simple & Fast** - Python implementation with minimal dependencies
 - **Keyboard Shortcuts** - Always visible at the bottom of the screen
 - **State Persistence** - Automatically saves tweet history between sessions
+- **Incremental Save** - Only new tweets are saved to disk for better performance
 
 ## UI Design
 
@@ -136,6 +137,8 @@ max_tweets = 400
 filter_replies = true
 persist_state = true
 max_saved_tweets = 1000
+incremental_save = true
+merge_threshold = 50
 
 [users]
 handles = ["karpathy", "dotey", "op7418", "chengfeng240928", "bcherny", "lijigang", "123olp", "AI_Whisper_X", "vista8"]
@@ -160,6 +163,8 @@ auto_scroll = true
 - `filter_replies`: Filter out reply tweets (true = show only original tweets and retweets)
 - `persist_state`: Enable state persistence between sessions
 - `max_saved_tweets`: Maximum tweets to save to disk
+- `incremental_save`: Enable incremental save mode (only new tweets are written)
+- `merge_threshold`: Merge incremental file after this many new tweets
 - `handles`: List of Twitter usernames (without @)
 - `enable`: Enable notifications
 - `sound`: Terminal bell on new tweets
@@ -173,7 +178,25 @@ x-monitor automatically saves your tweet history to disk. When you restart the a
 - "New tweet" indicators are preserved
 - History is saved to `~/.config/x-monitor/state.json` (or `./state.json`)
 
-You can disable this feature by setting `persist_state = false` in your config.
+**Incremental Save Mode (默认启用)**:
+
+增量保存模式只保存新增的推文，减少磁盘写入，提高性能：
+
+- 新推文保存到 `state.incremental.json`
+- 达到 `merge_threshold` 条时自动合并到主文件
+- 退出时强制合并，确保不丢失数据
+- 启动时自动应用增量文件
+
+文件结构：
+```
+~/.config/x-monitor/
+├── state.json              # 主文件：完整推文列表
+└── state.incremental.json  # 增量文件：新增推文（自动清理）
+```
+
+如需使用传统全量保存模式，设置 `incremental_save = false`。
+
+You can disable state persistence by setting `persist_state = false` in your config.
 
 ## Nitter Instances
 

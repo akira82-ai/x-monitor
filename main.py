@@ -43,7 +43,10 @@ async def main_async() -> None:
     config = Config.load(args.config)
 
     # 初始化状态管理器
-    state_manager = StateManager(max_tweets=config.general.max_saved_tweets)
+    state_manager = StateManager(
+        max_tweets=config.general.max_saved_tweets,
+        merge_threshold=config.general.merge_threshold
+    )
 
     # 尝试加载保存的状态
     if config.general.persist_state:
@@ -59,7 +62,12 @@ async def main_async() -> None:
     # 注册退出时保存状态
     if config.general.persist_state:
         def save_on_exit():
-            state_manager.save(state)
+            if config.general.incremental_save:
+                # 增量模式：退出时合并
+                monitor.cleanup_and_save()
+            else:
+                # 全量模式
+                state_manager.save(state)
         atexit.register(save_on_exit)
 
     # Create monitor
