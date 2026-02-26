@@ -25,9 +25,9 @@ echo "Activating virtual environment..."
 source .venv/bin/activate
 
 # Check if dependencies are installed
-if ! python -c "import textual" 2>/dev/null; then
+if ! python -c "import prompt_toolkit" 2>/dev/null; then
     echo -e "${YELLOW}Dependencies not installed. Installing...${NC}"
-    pip install -q textual feedparser httpx toml
+    pip install -q prompt_toolkit feedparser httpx toml wcwidth
     echo -e "${GREEN}✓ Dependencies installed${NC}"
 fi
 
