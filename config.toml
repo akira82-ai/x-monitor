@@ -1,0 +1,38 @@
+# x-monitor Configuration File
+
+[general]
+# Polling interval in seconds (minimum 10)
+poll_interval_sec = 60
+
+# Nitter instance to use (see https://github.com/zedeus/nitter/wiki/Instances)
+nitter_instance = "https://nitter.net"
+
+# Maximum number of tweets to keep per user
+max_tweets = 50
+
+[users]
+# List of Twitter handles to monitor (without @ symbol)
+handles = ["karpathy", "dotey", "op7418"]
+
+[notification]
+# Enable notifications
+enable = true
+
+# Terminal bell sound
+sound = true
+
+# Terminal flash visual alert
+flash = true
+
+# Desktop notifications (requires plyer)
+desktop = false
+
+[ui]
+# Color theme: "dark" or "light"
+theme = "dark"
+
+# Show timestamps in tweet list
+show_timestamps = true
+
+# Auto-scroll to new tweets
+auto_scroll = true
