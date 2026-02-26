@@ -121,11 +121,11 @@ class TweetDetailsControl(UIControl):
 
         tweet = self.state.selected_tweet
         if not tweet:
-            lines.append(FormattedText([('class:vseparator', '│'), ('', ' 没有选中的推文')]))
+            lines.append(FormattedText([('', '没有选中的推文')]))
         else:
             # 标题
-            lines.append(FormattedText([('class:vseparator', '│'), ('bold', f' @{tweet.author}')]))
-            lines.append(FormattedText([('class:vseparator', '│'), ('', '')]))
+            lines.append(FormattedText([('bold', f'@{tweet.author}')]))
+            lines.append(FormattedText([('', '')]))
 
             # 徽章
             badges = []
@@ -134,25 +134,25 @@ class TweetDetailsControl(UIControl):
             if tweet.is_reply:
                 badges.append('💬 回复')
             if badges:
-                lines.append(FormattedText([('class:vseparator', '│'), ('', ' ' + ' '.join(badges))]))
-                lines.append(FormattedText([('class:vseparator', '│'), ('', '')]))
+                lines.append(FormattedText([('', ' '.join(badges))]))
+                lines.append(FormattedText([('', '')]))
 
             # 时间 - 转换为本地时区
             local_time = tweet.timestamp.astimezone().strftime("%Y-%m-%d %H:%M:%S")
-            lines.append(FormattedText([('class:vseparator', '│'), ('', f' 发布时间: {local_time}')]))
+            lines.append(FormattedText([('', f'发布时间: {local_time}')]))
 
             # URL - 紧跟在时间戳后面
             x_url = f'https://x.com/{tweet.author}/status/{tweet.id}'
-            lines.append(FormattedText([('class:vseparator', '│'), ('dim', f' URL: {x_url}')]))
-            lines.append(FormattedText([('class:vseparator', '│'), ('', '')]))
-            lines.append(FormattedText([('class:vseparator', '│'), ('', ' ---')]))
-            lines.append(FormattedText([('class:vseparator', '│'), ('', '')]))
+            lines.append(FormattedText([('dim', f'URL: {x_url}')]))
+            lines.append(FormattedText([('', '')]))
+            lines.append(FormattedText([('', '---')]))
+            lines.append(FormattedText([('', '')]))
 
             # 内容（自动换行）
             content_lines = []
             words = tweet.content.split()
             current_line = ''
-            max_width = width - 4  # 留出边距（包括边框字符）
+            max_width = width - 2  # 留出边距
 
             for word in words:
                 if len(current_line) + len(word) + 1 <= max_width:
@@ -165,14 +165,14 @@ class TweetDetailsControl(UIControl):
                 content_lines.append(current_line)
 
             for line in content_lines:
-                lines.append(FormattedText([('class:vseparator', '│'), ('', ' ' + line)]))
+                lines.append(FormattedText([('', ' ' + line)]))
 
         # 填充剩余空间
         while len(lines) < height:
-            lines.append(FormattedText([('class:vseparator', '│'), ('', '')]))
+            lines.append(FormattedText([('', '')]))
 
         return UIContent(
-            get_line=lambda i: lines[i] if i < len(lines) else FormattedText([('class:vseparator', '│'), ('', '')]),
+            get_line=lambda i: lines[i] if i < len(lines) else FormattedText([('', '')]),
             line_count=len(lines),
         )
 
@@ -294,16 +294,16 @@ def create_layout(state: AppState, config: Config) -> Layout:
         wrap_lines=True,
     )
 
-    # Details panel (永久显示在右侧，占 1/4 屏幕)
-    details_panel = Window(
-        content=TweetDetailsControl(state),
-        width=D(preferred=details_width),
-        wrap_lines=True,
-    )
-
-    # Combine main content and details in horizontal split
+    # Combine main content and details in horizontal split with white separator
     content_area = VSplit([
         main_content,
+        # White vertical separator line
+        Window(
+            height=D(min=1),
+            content=FormattedTextControl(lambda: "│"),
+            style='class:vseparator',
+            width=D.exact(1)
+        ),
         details_panel,
     ])
 
