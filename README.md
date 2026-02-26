@@ -117,7 +117,7 @@ Create a `config.toml` file:
 
 ```toml
 [general]
-poll_interval_sec = 60
+poll_interval_sec = 300
 nitter_instance = "https://nitter.net"
 max_tweets = 400
 filter_replies = true

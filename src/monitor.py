@@ -69,6 +69,9 @@ class Monitor:
         # Trim to max tweets
         max_tweets = self.config.general.max_tweets
         if len(self.state.tweets) > max_tweets:
+            # 保存当前选中推文的 ID
+            selected_id = self.state.selected_tweet.id if self.state.selected_tweet else None
+
             # Count how many new tweets are being removed
             removed_tweets = self.state.tweets[max_tweets:]
             removed_new_count = sum(1 for t in removed_tweets if t.is_new)
@@ -76,8 +79,30 @@ class Monitor:
             # Adjust the counter
             self.state.new_tweets_count = max(0, self.state.new_tweets_count - removed_new_count)
 
+            # 恢复选中项
+            if selected_id:
+                for i, tweet in enumerate(self.state.tweets):
+                    if tweet.id == selected_id:
+                        self.state.selected_index = i
+                        break
+                else:
+                    # 选中项被删除，选中第一项
+                    self.state.selected_index = 0
+
         # Sort tweets by timestamp (newest first)
+        # 保存当前选中推文的 ID
+        selected_id = self.state.selected_tweet.id if self.state.selected_tweet else None
         self.state.tweets.sort(key=lambda t: t.timestamp, reverse=True)
+
+        # 恢复选中项的位置
+        if selected_id:
+            for i, tweet in enumerate(self.state.tweets):
+                if tweet.id == selected_id:
+                    self.state.selected_index = i
+                    break
+            else:
+                # 选中项不见了（不应该发生），选中第一项
+                self.state.selected_index = 0
 
         # Update status
         self.state.last_poll = datetime.now(timezone.utc)

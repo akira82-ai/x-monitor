@@ -9,7 +9,7 @@ import toml
 @dataclass
 class GeneralConfig:
     """General configuration settings."""
-    poll_interval_sec: int = 60
+    poll_interval_sec: int = 300
     nitter_instance: str = "https://nitter.net"
     max_tweets: int = 50
     filter_replies: bool = True  # Filter out reply tweets

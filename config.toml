@@ -2,7 +2,7 @@
 
 [general]
 # Polling interval in seconds (minimum 10)
-poll_interval_sec = 60
+poll_interval_sec = 300
 
 # Nitter instance to use (see https://github.com/zedeus/nitter/wiki/Instances)
 nitter_instance = "https://nitter.net"

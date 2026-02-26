@@ -407,22 +407,35 @@ def create_style() -> Style:
 
 async def poll_tweets_background(state: AppState, config: Config, app: Application, refresh_callback: Callable):
     """Background task for polling tweets."""
+    import time
+    last_poll_time = time.time() - config.general.poll_interval_sec  # 立即触发一次轮询
+
     while True:
         try:
+            current_time = time.time()
+            time_since_last_poll = current_time - last_poll_time
+            time_until_next_poll = config.general.poll_interval_sec - time_since_last_poll
+
+            # 等待到下一次轮询时间
+            if time_until_next_poll > 0:
+                await asyncio.sleep(time_until_next_poll)
+
+            # 检查是否暂停，如果暂停则跳过这次轮询但更新时间
             if not state.paused:
                 # Call the refresh callback
                 await refresh_callback()
                 # Trigger UI refresh
                 app.invalidate()
 
-            # Wait for next poll
-            await asyncio.sleep(config.general.poll_interval_sec)
+            # 更新上次轮询时间
+            last_poll_time = time.time()
 
         except asyncio.CancelledError:
             break
         except Exception as e:
             # Silent error handling - continue polling
             await asyncio.sleep(5)  # Wait before retry
+            last_poll_time = time.time() - config.general.poll_interval_sec  # 立即重试
 
 
 async def update_ui_background(app: Application):
