@@ -27,7 +27,7 @@ The interface uses clean lines and borders instead of color blocks:
 │  @suhail      🔔 Working on AI research...        02-26     │
 │  @user        🔁 Retweeted something...          02-25     │
 ├─────────────────────────────────────────────────────────────┤
-│ Q:退出  R:刷新  Space:暂停  ↑↓:选择  N/P:翻页  g/G:首尾    │
+│ Q:退出  R:刷新  Space:暂停  ↑↓:选择  ←→:翻页  g/G:首尾    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
