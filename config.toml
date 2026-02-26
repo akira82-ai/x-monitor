@@ -1,53 +1,79 @@
-# x-monitor Configuration File
+# x-monitor 配置文件
+# X (Twitter) 用户监控 CLI 工具
 
 [general]
-# Polling interval in seconds (minimum 10)
+# 轮询间隔（秒）
+# 每隔多少秒检查一次新推文，最小值为 10 秒
 poll_interval_sec = 300
 
-# Nitter instance to use (see https://github.com/zedeus/nitter/wiki/Instances)
+# Nitter 实例地址
+# Nitter 是 Twitter 的开源前端，不依赖官方 API
+# 常用镜像：https://nitter.net、https://nitter.poast.org、https://nitter.privacydev.net
+# 更多实例见：https://github.com/zedeus/nitter/wiki/Instances
 nitter_instance = "https://nitter.net"
 
-# Maximum number of tweets to keep per user
+# 内存中保留的最大推文数
+# 超过此数量后，旧推文会被移除（仅影响内存，不影响磁盘保存）
 max_tweets = 400
 
-# Filter out reply tweets (true = show only original tweets and retweets)
+# 是否过滤回复推文
+# true = 只显示原创推文和转推，过滤掉对其他人的回复
+# false = 显示所有推文（包括回复）
 filter_replies = true
 
-# Persist state between sessions (true = save and restore tweet history)
+# 是否持久化状态
+# true = 退出时保存推文历史，下次启动时恢复
+# false = 每次启动都是全新状态
 persist_state = true
 
-# Maximum tweets to save to disk (across all users)
+# 磁盘上保存的最大推文数
+# 超过此数量时，旧推文会被从保存文件中移除
 max_saved_tweets = 1000
 
-# Incremental save (only save new tweets to reduce disk I/O)
+# 是否启用增量保存
+# true = 只保存新增推文，减少磁盘写入，提高性能
+# false = 每次都保存全部推文（传统模式）
 incremental_save = true
 
-# Merge incremental file into main file after this many new tweets
+# 增量文件合并阈值
+# 当增量文件中的推文数量达到此值时，自动合并到主文件
+# 退出时总是会强制合并，确保数据不丢失
 merge_threshold = 50
 
 [users]
-# List of Twitter handles to monitor (without @ symbol)
+# 要监控的 Twitter 用户列表
+# 输入用户名，不需要 @ 符号
+# 例如：["elonmusk", "samaltman"] 监控这两位用户
 handles = ["karpathy", "dotey", "op7418", "chengfeng240928", "bcherny", "lijigang", "123olp", "AI_Whisper_X", "vista8"]
 
 [notification]
-# Enable notifications
+# 是否启用新推文通知
 enable = true
 
-# Terminal bell sound
+# 终端响铃提示
+# true = 有新推文时终端会发出 "哔" 的一声
 sound = true
 
-# Terminal flash visual alert
+# 终端闪烁提示
+# true = 有新推文时终端窗口会闪烁（视觉提醒）
 flash = true
 
-# Desktop notifications (requires plyer)
+# 桌面通知
+# true = 使用系统桌面通知（需要安装 plyer 库）
+# 安装命令：pip install plyer
 desktop = false
 
 [ui]
-# Color theme: "dark" or "light"
+# 颜色主题
+# "dark" = 深色主题（默认）
+# "light" = 浅色主题
 theme = "dark"
 
-# Show timestamps in tweet list
+# 是否显示时间戳
+# true = 在推文列表中显示发布日期（格式：MM-DD）
 show_timestamps = true
 
-# Auto-scroll to new tweets
+# 是否自动滚动到新推文
+# true = 有新推文时自动滚动到顶部
+# false = 保持当前位置，不自动滚动
 auto_scroll = true
