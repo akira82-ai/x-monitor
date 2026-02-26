@@ -45,4 +45,8 @@ fi
 echo ""
 echo "Starting x-monitor..."
 echo ""
+
+# Clear SOCKS proxy to avoid socksio dependency, keep HTTP/HTTPS proxy
+unset all_proxy ALL_PROXY
+
 python main.py config.toml

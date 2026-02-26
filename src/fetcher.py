@@ -17,7 +17,12 @@ class TweetFetcher:
         self.nitter_instance = nitter_instance.rstrip("/")
         self.timeout = timeout
 
-        # Create client without proxy to avoid SOCKS issues
+        # Use HTTP/HTTPS proxy from environment, but not SOCKS
+        # This avoids the socksio dependency issue
+        import os
+        proxy = os.environ.get('https_proxy') or os.environ.get('http_proxy')
+
+        # Create client with HTTP proxy support only
         self.client = httpx.AsyncClient(
             timeout=timeout,
             headers={
@@ -25,7 +30,7 @@ class TweetFetcher:
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             },
             follow_redirects=True,
-            trust_env=False,  # Disable proxy to avoid SOCKS dependency
+            proxy=proxy,  # Use HTTP/HTTPS proxy explicitly
         )
 
     async def fetch_tweets(self, handle: str) -> List[Tweet]:
