@@ -21,7 +21,7 @@ max_saved_tweets = 1000
 
 [users]
 # List of Twitter handles to monitor (without @ symbol)
-handles = ["karpathy", "dotey", "op7418", "chengfeng240928", "bcherny", "lijigang", "123olp", "AI_Whisper_X"]
+handles = ["karpathy", "dotey", "op7418", "chengfeng240928", "bcherny", "lijigang", "123olp", "AI_Whisper_X", "vista8"]
 
 [notification]
 # Enable notifications

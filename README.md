@@ -19,16 +19,17 @@ X (Twitter) User Monitoring CLI Dashboard - A TUI application for monitoring Twi
 The interface uses clean lines and borders instead of color blocks:
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ x-monitor | ▶ • 🔔 4 条新 • 50 条 • 1/2 页 • 34秒前          │
-├─────────────────────────────────────────────────────────────┤
-│  User         Content                          Date         │
-│  @karpathy    🔔 Just shipped a new feature! 🚀   02-26     │
-│  @suhail      🔔 Working on AI research...        02-26     │
-│  @user        🔁 Retweeted something...          02-25     │
-├─────────────────────────────────────────────────────────────┤
-│ Q:退出  R:刷新  Space:暂停  ↑↓:选择  ←→:翻页  g/G:首尾    │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────┬──────────────────────────────────┐
+│ x-monitor | ▶ • 🔔 4 条新 • 50 条 │ @karpathy                        │
+│ • 1/2 页 • 34秒前                 │ 🔁 转推                          │
+├──────────────────────────────────┤ 发布时间: 2025-02-26 10:30:00    │
+│  User         Content    Date    │ URL: https://x.com/karpathy/...  │
+│  @karpathy   Just shipped  02-26 │ ──────────────────────────────── │
+│  @suhail     Working on  02-26   │ Just shipped a new feature! 🚀   │
+│  @user       Retweeted    02-25  │ This is a long tweet content...  │
+├──────────────────────────────────┴──────────────────────────────────┤
+│ Q:退出  R:刷新  Space:暂停  ↑↓:选择  ←→:翻页  g/G:首尾              │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 **Legend:**
@@ -125,7 +126,7 @@ persist_state = true
 max_saved_tweets = 1000
 
 [users]
-handles = ["karpathy", "dotey", "op7418", "chengfeng240928", "bcherny", "lijigang", "123olp", "AI_Whisper_X"]
+handles = ["karpathy", "dotey", "op7418", "chengfeng240928", "bcherny", "lijigang", "123olp", "AI_Whisper_X", "vista8"]
 
 [notification]
 enable = true

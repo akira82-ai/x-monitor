@@ -31,11 +31,12 @@ class TweetTableControl(UIControl):
         # 更新页面大小
         self.state.update_page_size(height)
 
-        # 固定列宽：User(16) + Date(9) + 空格(2) = 27
+        # 固定列宽：User(16) + Date(9) + Separator(3) + 空格(2) = 30
         # Content 列自适应填充剩余空间
         user_width = 16
         date_width = 9
-        fixed_width = user_width + date_width + 2  # 包括空格
+        separator_width = 3  # │ with spacing
+        fixed_width = user_width + date_width + separator_width + 2  # 包括空格
         content_width = max(width - fixed_width, 20)  # 使用实际可用宽度
 
         # 计算当前页的推文范围
@@ -86,8 +87,9 @@ class TweetTableControl(UIControl):
             if date_padding < 0:
                 date_padding = 0
 
-            # 组合行：User + 空格 + Content + 空格 + Date
-            row_text = f"{user_col}{' ' * user_padding} {content_col} {date_col}{' ' * date_padding}"
+            # 组合行：User + 空格 + Content + 空格 + Date + Separator
+            separator_col = " │"  # Space + vertical bar
+            row_text = f"{user_col}{' ' * user_padding} {content_col} {date_col}{' ' * date_padding}{separator_col}"
             lines.append(FormattedText([(style, row_text)]))
 
         # Fill remaining space with empty lines
@@ -230,13 +232,14 @@ def create_layout(state: AppState, config: Config) -> Layout:
 
     # Table header (column names)
     def get_table_header_line():
-        # 固定列宽：User(16) + Date(9) + 空格(2) = 27
+        # 固定列宽：User(16) + Date(9) + Separator(3) + 空格(2) = 30
         # Content 列自适应填充剩余空间
         term_width = shutil.get_terminal_size().columns
         main_width = term_width * 3 // 4
         user_width = 16
         date_width = 9
-        fixed_width = user_width + date_width + 2
+        separator_width = 3  # │ with spacing
+        fixed_width = user_width + date_width + separator_width + 2
         content_width = max(main_width - fixed_width, 20)
 
         # 使用与内容行相同的格式化方式
@@ -273,9 +276,9 @@ def create_layout(state: AppState, config: Config) -> Layout:
         dont_extend_height=True
     )
 
-    # 计算布局宽度：主内容 3/4，详情面板 1/4
+    # 计算布局宽度：主内容 1/2，详情面板 1/2
     term_width = shutil.get_terminal_size().columns
-    main_width = term_width * 3 // 4
+    main_width = term_width // 2
     details_width = term_width - main_width  # 剩余宽度给详情面板
 
     # Main content (tweet table) - 占据 3/4 屏幕
@@ -287,23 +290,16 @@ def create_layout(state: AppState, config: Config) -> Layout:
         dont_extend_height=False
     )
 
-    # Details panel (永久显示在右侧，占 1/4 屏幕)
+    # Details panel (永久显示在右侧，占 1/2 屏幕)
     details_panel = Window(
         content=TweetDetailsControl(state),
         width=D(preferred=details_width),
-        wrap_lines=True,
+        wrap_lines=False,
     )
 
-    # Combine main content and details in horizontal split with white separator
+    # Combine main content and details in horizontal split
     content_area = VSplit([
         main_content,
-        # White vertical separator line
-        Window(
-            height=D(min=1),
-            content=FormattedTextControl(lambda: "│"),
-            style='class:vseparator',
-            width=D.exact(1)
-        ),
         details_panel,
     ])
 
