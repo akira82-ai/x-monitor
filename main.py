@@ -40,7 +40,7 @@ async def main_async() -> None:
     # Load configuration
     config = Config.load(args.config)
 
-    # Create state and monitor (silently)
+    # Create state and monitor
     state = AppState()
     monitor = Monitor(config, state)
 
@@ -48,8 +48,16 @@ async def main_async() -> None:
     async def do_refresh() -> None:
         await monitor.poll_once()
 
-    # Initial load
-    await do_refresh()
+    # Initial load with timeout
+    print("Loading tweets... (this may take a moment)")
+    try:
+        await asyncio.wait_for(do_refresh(), timeout=10.0)
+        print(f"Loaded {len(state.tweets)} tweets")
+    except asyncio.TimeoutError:
+        print("Initial load timed out, starting UI anyway...")
+    except Exception as e:
+        print(f"Error during initial load: {e}")
+        print("Starting UI anyway...")
 
     # Run the UI
     try:

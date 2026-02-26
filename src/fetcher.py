@@ -12,7 +12,7 @@ from .types import Tweet
 class TweetFetcher:
     """Fetch tweets from Nitter RSS feeds."""
 
-    def __init__(self, nitter_instance: str, timeout: float = 30.0):
+    def __init__(self, nitter_instance: str, timeout: float = 10.0):
         """Initialize the fetcher with a Nitter instance URL."""
         self.nitter_instance = nitter_instance.rstrip("/")
         self.timeout = timeout
