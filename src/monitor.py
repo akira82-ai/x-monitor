@@ -40,7 +40,7 @@ class Monitor:
         self.state.paused = not self.state.paused
         self.state.status_message = "Paused" if self.state.paused else "Running"
 
-    async def poll_once(self) -> int:
+    async def poll_once(self, progress_callback=None) -> int:
         """Perform a single poll for new tweets. Returns new tweet count."""
         if self.state.paused:
             return 0
@@ -48,7 +48,7 @@ class Monitor:
         total_new = 0
         new_tweets_list = []  # 跟踪新增推文
 
-        for handle in self.config.users.handles:
+        for i, handle in enumerate(self.config.users.handles):
             try:
                 tweets = await self.fetcher.fetch_tweets(handle)
 
@@ -67,6 +67,9 @@ class Monitor:
             except Exception as e:
                 # Silent error handling
                 self.state.status_message = f"Error: {e}"
+            finally:
+                if progress_callback:
+                    progress_callback(i + 1, len(self.config.users.handles))
 
         # Trim to max tweets
         max_tweets = self.config.general.max_tweets

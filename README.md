@@ -20,6 +20,7 @@ X (Twitter) User Monitoring CLI Dashboard - A TUI application for monitoring Twi
 - **State Persistence** - Automatically saves tweet history between sessions
 - **Incremental Save** - Only new tweets are saved to disk for better performance
 - **Accurate Emoji Rendering** - ZWJ emoji sequences (e.g. 🧑‍💻) display correctly without column overflow
+- **Startup Progress** - Shows per-user loading progress (`Loading tweets... 1/9`) before the TUI starts
 
 ## UI Design
 

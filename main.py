@@ -77,15 +77,20 @@ async def main_async() -> None:
     async def do_refresh() -> None:
         await monitor.poll_once()
 
-    # Initial load with timeout
-    print("Loading tweets... (this may take a moment)")
+    # Initial load with progress
+    total = len(config.users.handles)
+
+    def on_progress(done, total):
+        print(f"\rLoading tweets... {done}/{total}", end="", flush=True)
+
+    print(f"Loading tweets... 0/{total}", end="", flush=True)
     try:
-        await asyncio.wait_for(do_refresh(), timeout=10.0)
-        print(f"Loaded {len(state.tweets)} tweets")
+        await asyncio.wait_for(monitor.poll_once(progress_callback=on_progress), timeout=10.0)
+        print(f"\nLoaded {len(state.tweets)} tweets")
     except asyncio.TimeoutError:
-        print("Initial load timed out, starting UI anyway...")
+        print("\nInitial load timed out, starting UI anyway...")
     except Exception as e:
-        print(f"Error during initial load: {e}")
+        print(f"\nError during initial load: {e}")
         print("Starting UI anyway...")
 
     # Run the UI
