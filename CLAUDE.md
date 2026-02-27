@@ -78,8 +78,8 @@ Nitter RSS → TweetFetcher → Monitor → AppState → UI (prompt_toolkit)
 | `/` | 关键词搜索/过滤 |
 | `u` | 切换仅显示当前用户推文 |
 | `o` | 在浏览器中打开推文 URL |
-| `Ctrl+↓/↑` | 在详情面板内滚动 |
-| `Ctrl+R` / `F5` | 热重载配置文件 |
+| `Alt+↓/↑` | 在详情面板内滚动 |
+| `Alt+R` / `F5` | 热重载配置文件 |
 
 ## 配置系统
 

@@ -343,7 +343,7 @@ def create_layout(state: AppState, config: Config) -> Layout:
     # Footer (keybindings)
     footer = Window(
         content=FormattedTextControl(
-            lambda: "Q:退出  R:刷新  Space:暂停  ↑↓:选择  ←→:翻页  g/G:首尾  /:搜索  u:用户过滤  o:打开URL  Ctrl+↑↓:滚动详情  Ctrl+R:重载配置"
+            lambda: "Q:退出  R:刷新  Space:暂停  ↑↓:选择  ←→:翻页  g/G:首尾  /:搜索  u:用户过滤  o:打开URL  Alt+↑↓:滚动详情  Alt+R:重载配置"
         ),
         height=D.exact(1),
         style='class:footer',
@@ -483,19 +483,19 @@ def create_key_bindings(state: AppState, refresh_callback: Callable, monitor=Non
             state.status_message = f"已打开: {url}"
         event.app.invalidate()
 
-    @kb.add('c-down')
+    @kb.add('escape', 'down')
     def _(event):
         """Scroll details panel down."""
         state.details_scroll_offset += 1
         event.app.invalidate()
 
-    @kb.add('c-up')
+    @kb.add('escape', 'up')
     def _(event):
         """Scroll details panel up."""
         state.details_scroll_offset = max(0, state.details_scroll_offset - 1)
         event.app.invalidate()
 
-    @kb.add('c-r')
+    @kb.add('escape', 'r')
     @kb.add('f5')
     def _(event):
         """Reload configuration."""

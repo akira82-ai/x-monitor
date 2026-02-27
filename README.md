@@ -10,8 +10,8 @@ X (Twitter) User Monitoring CLI Dashboard - A TUI application for monitoring Twi
 - **Multiple Users** - Monitor multiple Twitter handles simultaneously
 - **Search & Filter** - Keyword search and user filtering (press `/` or `u`)
 - **Open in Browser** - Directly open tweet URLs in browser (press `o`)
-- **Details Panel** - Scrollable details panel with Ctrl+↑/↓
-- **Config Hot Reload** - Reload config without restarting (Ctrl+R or F5)
+- **Details Panel** - Scrollable details panel with Alt+↑/↓
+- **Config Hot Reload** - Reload config without restarting (Alt+R or F5)
 - **Loading & Error States** - Visual feedback for polling status
 - **Notifications** - Terminal alerts for new tweets
 - **No API Keys** - Uses public Nitter RSS feeds
@@ -37,7 +37,7 @@ The interface uses clean lines and borders instead of color blocks:
 │  @user       Retweeted    02-25  │ This is a long tweet content...  │
 ├──────────────────────────────────┴──────────────────────────────────┤
 │ Q:退出  R:刷新  Space:暂停  ↑↓:选择  ←→:翻页  g/G:首尾              │
-│ /:搜索  u:用户过滤  o:打开URL  Ctrl+↑↓:滚动详情  Ctrl+R:重载配置    │
+│ /:搜索  u:用户过滤  o:打开URL  Alt+↑↓:滚动详情  Alt+R:重载配置    │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -123,9 +123,9 @@ python3 main.py --help
 | `/` | Keyword search/filter |
 | `u` | Toggle filter by current user |
 | `o` | Open tweet URL in browser |
-| `Ctrl+↓` | Scroll details panel down |
-| `Ctrl+↑` | Scroll details panel up |
-| `Ctrl+R` / `F5` | Reload configuration |
+| `Alt+↓` | Scroll details panel down |
+| `Alt+↑` | Scroll details panel up |
+| `Alt+R` / `F5` | Reload configuration |
 
 ## Configuration
 
