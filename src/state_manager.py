@@ -128,6 +128,12 @@ class StateManager:
             for t in incremental_data.get("tweets", []):
                 main_tweets[t["id"]] = t
 
+            # 用当前内存状态的 is_new 值覆盖，确保阅读状态正确持久化
+            if state:
+                for tweet in state.tweets:
+                    if tweet.id in main_tweets:
+                        main_tweets[tweet.id]["is_new"] = tweet.is_new
+
             # 排序并限制数量
             tweets_list = sorted(
                 main_tweets.values(),

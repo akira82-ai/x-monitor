@@ -176,7 +176,7 @@ auto_scroll = true
 x-monitor automatically saves your tweet history to disk. When you restart the app:
 
 - Previously loaded tweets are restored
-- "New tweet" indicators are preserved
+- Read/unread status (🔔) is correctly preserved across sessions
 - History is saved to `~/.config/x-monitor/state.json` (or `./state.json`)
 
 **Incremental Save Mode (默认启用)**:
