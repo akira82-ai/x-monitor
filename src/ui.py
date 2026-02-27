@@ -4,7 +4,12 @@ import asyncio
 import shutil
 from datetime import datetime
 from typing import Callable
-from wcwidth import wcswidth
+from prompt_toolkit.utils import get_cwidth as _pt_cwidth
+
+
+def _w(s: str) -> int:
+    """Display width matching prompt_toolkit's internal rendering."""
+    return _pt_cwidth(s)
 
 from prompt_toolkit.application import Application, run_in_terminal
 from prompt_toolkit.layout import Layout, HSplit, VSplit, Window, Dimension as D
@@ -61,7 +66,7 @@ class TweetTableControl(UIControl):
             elif tweet.is_retweet:
                 prefix = "🔁 "
             # 使用 wcswidth 计算 emoji 的实际显示宽度
-            prefix_display_width = wcswidth(prefix) if prefix and wcswidth(prefix) > 0 else 0
+            prefix_display_width = _w(prefix) if prefix else 0
             # 从 content_width 中减去 prefix 的显示宽度
             available_content_width = content_width - prefix_display_width
 
@@ -69,7 +74,7 @@ class TweetTableControl(UIControl):
             tweet_preview = tweet.preview(available_content_width)
 
             # 计算实际显示宽度（考虑中文字符）
-            preview_display_width = wcswidth(tweet_preview) if wcswidth(tweet_preview) > 0 else len(tweet_preview)
+            preview_display_width = _w(tweet_preview)
 
             # 计算需要填充的空格数（确保 Content 列总宽度为 content_width）
             content_padding = content_width - prefix_display_width - preview_display_width
@@ -79,7 +84,7 @@ class TweetTableControl(UIControl):
             # 格式化各列
             user_col = f"@{tweet.author}"
             # 计算 user_col 的显示宽度并填充到 user_width
-            user_col_width = wcswidth(user_col) if wcswidth(user_col) > 0 else len(user_col)
+            user_col_width = _w(user_col)
             user_padding = user_width - user_col_width
             if user_padding < 0:
                 user_padding = 0
@@ -87,7 +92,7 @@ class TweetTableControl(UIControl):
             content_col = f"{prefix}{tweet_preview}{' ' * content_padding}"
 
             date_col = tweet.format_timestamp()
-            date_col_width = wcswidth(date_col) if wcswidth(date_col) > 0 else len(date_col)
+            date_col_width = _w(date_col)
             date_padding = date_width - date_col_width
             if date_padding < 0:
                 date_padding = 0
@@ -144,8 +149,8 @@ class TweetDetailsControl(UIControl):
                 lines.append(FormattedText([('', ' '.join(badges))]))
                 lines.append(FormattedText([('', '')]))
 
-            # 时间 - 转换为本地时区
-            local_time = tweet.timestamp.astimezone().strftime("%Y-%m-%d %H:%M:%S")
+            # 时间
+            local_time = tweet.timestamp.strftime("%Y-%m-%d %H:%M:%S")
             lines.append(FormattedText([('', f'发布时间: {local_time}')]))
 
             # URL - 紧跟在时间戳后面
@@ -268,11 +273,10 @@ def create_layout(state: AppState, config: Config) -> Layout:
         # 固定列宽：User(16) + Date(9) + Separator(3) + 空格(2) = 30
         # Content 列自适应填充剩余空间
         term_width = shutil.get_terminal_size().columns
-        main_width = term_width * 3 // 4
+        main_width = term_width // 2
         user_width = 16
         date_width = 9
-        separator_width = 3  # │ with spacing
-        fixed_width = user_width + date_width + separator_width + 2
+        fixed_width = user_width + date_width + 2  # 2 spaces
         content_width = max(main_width - fixed_width, 20)
 
         # 使用与内容行相同的格式化方式

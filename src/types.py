@@ -28,31 +28,29 @@ class Tweet:
 
     def preview(self, max_chars: int = 20) -> str:
         """Get a truncated version of the content."""
-        from wcwidth import wcswidth
+        from wcwidth import wcwidth as _wcwidth
 
-        # 设置合理的最小值（10 字符）
+        def _cw(s: str) -> int:
+            return sum(max(0, _wcwidth(c)) for c in s)
+
         if max_chars < 10:
             max_chars = 10
 
-        # 计算实际显示宽度
-        display_width = wcswidth(self.content) if wcswidth(self.content) > 0 else len(self.content)
-
-        if display_width <= max_chars:
+        if _cw(self.content) <= max_chars:
             return self.content
 
-        # 需要截断：逐字符累加，直到达到 max_chars - 3（为 "..." 预留空间）
         target_width = max_chars - 3
         current_width = 0
-        truncate_pos = 0
+        result = []
 
-        for i, char in enumerate(self.content):
-            char_width = wcswidth(char) if wcswidth(char) > 0 else 1
-            if current_width + char_width > target_width:
+        for char in self.content:
+            cw = max(0, _wcwidth(char))
+            if current_width + cw > target_width:
                 break
-            current_width += char_width
-            truncate_pos = i + 1
+            result.append(char)
+            current_width += cw
 
-        return f"{self.content[:truncate_pos]}..."
+        return ''.join(result) + '...'
 
     def to_dict(self) -> dict:
         """将 Tweet 转换为可序列化的字典."""
