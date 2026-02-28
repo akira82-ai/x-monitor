@@ -29,7 +29,7 @@
 **环境要求：** Python 3.10+
 
 ```bash
-git clone https://github.com/yourusername/x-monitor.git
+git clone https://github.com/akira82-ai/x-monitor.git
 cd x-monitor
 
 # 一键启动（自动创建虚拟环境并安装依赖）

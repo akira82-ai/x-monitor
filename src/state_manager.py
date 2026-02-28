@@ -206,4 +206,7 @@ class StateManager:
             state.tweets = state.tweets[:self.max_tweets]
             state.known_ids = {t.id for t in state.tweets}
 
+        # 重新计算以确保 new_tweets_count 与实际 is_new 标志一致
+        state.new_tweets_count = sum(1 for t in state.tweets if t.is_new)
+
         return state
