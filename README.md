@@ -13,7 +13,8 @@ X (Twitter) User Monitoring CLI Dashboard - A TUI application for monitoring Twi
 - **Details Panel** - Scrollable details panel with Alt+↑/↓
 - **Config Hot Reload** - Reload config without restarting (Alt+R or F5)
 - **Loading & Error States** - Visual feedback for polling status
-- **Notifications** - Terminal alerts for new tweets
+- **Notifications** - Terminal alerts for new tweets (bell, visual flash, window title badge, macOS Dock badge)
+- **Burst Detection** - Triggers 3× bell when 5+ tweets arrive within 60 seconds
 - **No API Keys** - Uses public Nitter RSS feeds
 - **Simple & Fast** - Python implementation with minimal dependencies
 - **Keyboard Shortcuts** - Always visible at the bottom of the screen
@@ -150,6 +151,10 @@ enable = true
 sound = true
 flash = true
 desktop = false
+title_badge = true     # 窗口标题显示未读数 + macOS Dock 徽章
+burst_threshold = 5    # 爆发检测阈值（推文数/分钟）
+burst_window_sec = 60  # 爆发检测时间窗口（秒）
+burst_sound = true     # 爆发时连响三声
 
 [ui]
 theme = "dark"
@@ -170,7 +175,11 @@ auto_scroll = true
 - `handles`: List of Twitter usernames (without @)
 - `enable`: Enable notifications
 - `sound`: Terminal bell on new tweets
-- `flash`: Visual alert on new tweets
+- `flash`: Visual alert on new tweets (non-blocking)
+- `title_badge`: Show unread count in window title and macOS Dock badge
+- `burst_threshold`: Number of tweets within the window that triggers burst mode
+- `burst_window_sec`: Time window for burst detection (seconds)
+- `burst_sound`: Ring bell 3× in burst mode instead of once
 
 ### State Persistence
 
@@ -262,6 +271,7 @@ x-monitor/
 │   ├── types.py         # Data structures
 │   ├── fetcher.py       # RSS fetching (feedparser + httpx)
 │   ├── monitor.py       # Polling logic (asyncio)
+│   ├── notifier.py      # Notifications (bell, flash, title badge, burst detection)
 │   ├── state_manager.py # State persistence
 │   └── ui.py            # TUI (prompt_toolkit)
 ├── config.toml

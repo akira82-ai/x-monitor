@@ -373,6 +373,8 @@ def create_key_bindings(state: AppState, refresh_callback: Callable, monitor=Non
         state.select_next()
         state.details_scroll_offset = 0  # Reset scroll offset
         state.mark_selected_as_read()
+        if state.new_tweets_count == 0 and monitor:
+            monitor.notifier.clear_badge()
         event.app.invalidate()
 
     @kb.add('k')
@@ -382,6 +384,8 @@ def create_key_bindings(state: AppState, refresh_callback: Callable, monitor=Non
         state.select_previous()
         state.details_scroll_offset = 0  # Reset scroll offset
         state.mark_selected_as_read()
+        if state.new_tweets_count == 0 and monitor:
+            monitor.notifier.clear_badge()
         event.app.invalidate()
 
     @kb.add('g')
@@ -390,6 +394,8 @@ def create_key_bindings(state: AppState, refresh_callback: Callable, monitor=Non
         state.select_first()
         state.details_scroll_offset = 0  # Reset scroll offset
         state.mark_selected_as_read()
+        if state.new_tweets_count == 0 and monitor:
+            monitor.notifier.clear_badge()
         event.app.invalidate()
 
     @kb.add('G')
@@ -398,6 +404,8 @@ def create_key_bindings(state: AppState, refresh_callback: Callable, monitor=Non
         state.select_last()
         state.details_scroll_offset = 0  # Reset scroll offset
         state.mark_selected_as_read()
+        if state.new_tweets_count == 0 and monitor:
+            monitor.notifier.clear_badge()
         event.app.invalidate()
 
     @kb.add('right')
@@ -407,6 +415,8 @@ def create_key_bindings(state: AppState, refresh_callback: Callable, monitor=Non
         state.next_page()
         state.details_scroll_offset = 0  # Reset scroll offset
         state.mark_selected_as_read()
+        if state.new_tweets_count == 0 and monitor:
+            monitor.notifier.clear_badge()
         event.app.invalidate()
 
     @kb.add('left')
@@ -416,6 +426,8 @@ def create_key_bindings(state: AppState, refresh_callback: Callable, monitor=Non
         state.prev_page()
         state.details_scroll_offset = 0  # Reset scroll offset
         state.mark_selected_as_read()
+        if state.new_tweets_count == 0 and monitor:
+            monitor.notifier.clear_badge()
         event.app.invalidate()
 
     @kb.add('q')
@@ -604,6 +616,10 @@ async def run_ui(config: Config, state: AppState, refresh_callback: Callable, mo
     poll_task = asyncio.create_task(
         poll_tweets_background(state, config, app, refresh_callback)
     )
+
+    # 启动时恢复标题状态（如果有未读推文）
+    if state.new_tweets_count > 0 and monitor:
+        monitor.notifier.notify_batch(0, state.new_tweets_count)
 
     # Start UI update task (for relative time)
     ui_update_task = asyncio.create_task(

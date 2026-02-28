@@ -45,6 +45,10 @@ class NotificationConfig:
     sound: bool = True
     flash: bool = True
     desktop: bool = False
+    title_badge: bool = True      # 窗口标题未读数和 Dock 徽章
+    burst_threshold: int = 5      # 爆发检测阈值（推文/分钟）
+    burst_window_sec: int = 60    # 爆发检测时间窗口（秒）
+    burst_sound: bool = True      # 爆发时连续响铃
 
 
 @dataclass
@@ -130,6 +134,10 @@ class Config:
                 "sound": self.notification.sound,
                 "flash": self.notification.flash,
                 "desktop": self.notification.desktop,
+                "title_badge": self.notification.title_badge,
+                "burst_threshold": self.notification.burst_threshold,
+                "burst_window_sec": self.notification.burst_window_sec,
+                "burst_sound": self.notification.burst_sound,
             },
             "ui": {
                 "theme": self.ui.theme,

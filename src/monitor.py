@@ -62,7 +62,6 @@ class Monitor:
                     if self.state.add_tweet(tweet):
                         total_new += 1
                         new_tweets_list.append(tweet)
-                        self.notifier.notify(tweet)
 
             except Exception as e:
                 # Silent error handling
@@ -124,6 +123,13 @@ class Monitor:
             else:
                 # 全量保存模式（向后兼容）
                 self.state_manager.save(self.state)
+
+        # 更新标题和徽章（批量通知）
+        if total_new > 0:
+            self.notifier.notify_batch(
+                new_count=total_new,
+                total_unread=self.state.new_tweets_count,
+            )
 
         return total_new
 
