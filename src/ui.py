@@ -177,15 +177,42 @@ class TweetDetailsControl(UIControl):
             content_lines = []
             words = tweet.content.split()
             current_line = ''
+            current_width = 0
             max_width = width - 2  # 留出边距
 
             for word in words:
-                if len(current_line) + len(word) + 1 <= max_width:
+                word_width = _w(word)
+                space_width = 1 if current_line else 0
+                if current_width + space_width + word_width <= max_width:
                     current_line += (' ' if current_line else '') + word
+                    current_width += space_width + word_width
                 else:
                     if current_line:
                         content_lines.append(current_line)
-                    current_line = word
+                    if word_width <= max_width:
+                        current_line = word
+                        current_width = word_width
+                    else:
+                        # Word itself too wide (e.g. long CJK with no spaces): split by char
+                        remaining = word
+                        while remaining:
+                            chunk = ''
+                            chunk_w = 0
+                            for ch in remaining:
+                                cw = _w(ch)
+                                if chunk_w + cw <= max_width:
+                                    chunk += ch
+                                    chunk_w += cw
+                                else:
+                                    break
+                            if not chunk:  # single char wider than max_width (shouldn't happen)
+                                chunk = remaining[0]
+                                chunk_w = _w(chunk)
+                            content_lines.append(chunk)
+                            remaining = remaining[len(chunk):]
+                        current_line = ''
+                        current_width = 0
+
             if current_line:
                 content_lines.append(current_line)
 
