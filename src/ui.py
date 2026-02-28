@@ -56,8 +56,6 @@ class TweetTableControl(UIControl):
         for i, tweet in enumerate(visible_tweets):
             # Since tweets are already filtered, use the absolute index (start_idx + i)
             absolute_index = start_idx + i
-            # Determine style based on selection
-            style = 'class:selected' if absolute_index == self.state.selected_index else ''
 
             # Format tweet row - 动态内容宽度
             prefix = ""
@@ -99,8 +97,17 @@ class TweetTableControl(UIControl):
 
             # 组合行：User + 空格 + Content + 空格 + Date + Separator
             separator_col = " │"  # Space + vertical bar
-            row_text = f"{user_col}{' ' * user_padding} {content_col} {date_col}{' ' * date_padding}{separator_col}"
-            lines.append(FormattedText([(style, row_text)]))
+            is_selected = absolute_index == self.state.selected_index
+            if is_selected:
+                row_text = f"{user_col}{' ' * user_padding} {content_col} {date_col}{' ' * date_padding}{separator_col}"
+                lines.append(FormattedText([('class:selected', row_text)]))
+            else:
+                lines.append(FormattedText([
+                    ('class:author', f"{user_col}{' ' * user_padding}"),
+                    ('', f" {content_col} "),
+                    ('class:date', f"{date_col}{' ' * date_padding}"),
+                    ('class:vseparator', separator_col),
+                ]))
 
         # Fill remaining space with empty lines
         while len(lines) < height:
@@ -136,7 +143,7 @@ class TweetDetailsControl(UIControl):
             lines.append(FormattedText([('', '没有选中的推文')]))
         else:
             # 标题
-            lines.append(FormattedText([('bold', f'@{tweet.author}')]))
+            lines.append(FormattedText([('class:details.title', f'@{tweet.author}')]))
             lines.append(FormattedText([('', '')]))
 
             # 徽章
@@ -146,18 +153,24 @@ class TweetDetailsControl(UIControl):
             if tweet.is_reply:
                 badges.append('💬 回复')
             if badges:
-                lines.append(FormattedText([('', ' '.join(badges))]))
+                lines.append(FormattedText([('class:details.label', ' '.join(badges))]))
                 lines.append(FormattedText([('', '')]))
 
             # 时间
             local_time = tweet.timestamp.strftime("%Y-%m-%d %H:%M:%S")
-            lines.append(FormattedText([('', f'发布时间: {local_time}')]))
+            lines.append(FormattedText([
+                ('class:details.label', '发布时间: '),
+                ('', local_time),
+            ]))
 
             # URL - 紧跟在时间戳后面
             x_url = f'https://x.com/{tweet.author}/status/{tweet.id}'
-            lines.append(FormattedText([('dim', f'URL: {x_url}')]))
+            lines.append(FormattedText([
+                ('class:details.label', 'URL: '),
+                ('class:details.label', x_url),
+            ]))
             lines.append(FormattedText([('', '')]))
-            lines.append(FormattedText([('', '---')]))
+            lines.append(FormattedText([('class:details.label', '---')]))
             lines.append(FormattedText([('', '')]))
 
             # 内容（自动换行）
@@ -527,12 +540,16 @@ def create_key_bindings(state: AppState, refresh_callback: Callable, monitor=Non
 def create_style() -> Style:
     """Create color scheme."""
     return Style.from_dict({
-        'header': 'bold',
-        'table_header': 'bold',
-        'separator': 'dim',
-        'footer': 'dim',
-        'selected': 'reverse',  # Highlight selected row
-        'vseparator': 'fg:white',  # White vertical separator between list and details
+        'header':         'fg:#5F87AF bold',   # App title + status bar
+        'table_header':   'fg:#888888',        # Column labels
+        'separator':      'fg:#444444',        # Horizontal rule
+        'footer':         'fg:#606060',        # Key hint bar
+        'selected':       'reverse',           # Selected row highlight
+        'author':         'fg:#5F87AF',        # @username column
+        'date':           'fg:#606060',        # Date column
+        'vseparator':     'fg:#444444',        # │ between list and details
+        'details.title':  'fg:#5F87AF bold',   # Author name in details panel
+        'details.label':  'fg:#606060',        # Field labels in details panel
     })
 
 

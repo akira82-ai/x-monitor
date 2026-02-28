@@ -4,7 +4,7 @@ X (Twitter) User Monitoring CLI Dashboard - A TUI application for monitoring Twi
 
 ## Features
 
-- **TUI Dashboard** - Clean terminal interface with minimal design
+- **TUI Dashboard** - Clean terminal interface with professional minimal color scheme
 - **Real-time Polling** - Configurable polling interval for new tweets
 - **New Tweet Indicators** - 🔔 marks unread tweets, cleared when you browse
 - **Multiple Users** - Monitor multiple Twitter handles simultaneously
@@ -25,7 +25,7 @@ X (Twitter) User Monitoring CLI Dashboard - A TUI application for monitoring Twi
 
 ## UI Design
 
-The interface uses clean lines and borders instead of color blocks:
+The interface uses a minimal single-accent color scheme: steel blue (`#5F87AF`) for usernames and headers, muted gray for timestamps and labels, and terminal-default white for tweet content. Easy on the eyes for long monitoring sessions.
 
 ```
 ┌──────────────────────────────────┬──────────────────────────────────┐
@@ -42,11 +42,15 @@ The interface uses clean lines and borders instead of color blocks:
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
+**Color scheme:**
+- `#5F87AF` steel blue — header, usernames, details panel title
+- `#606060` muted gray — dates, field labels, footer hints
+- `#444444` dark gray — separator lines
+- White (terminal default) — tweet content
+
 **Legend:**
 - 🔔 = New/unread tweet
 - 🔁 = Retweet
-
-See [UI_DESIGN.md](UI_DESIGN.md) for detailed design documentation.
 
 ## Installation
 
