@@ -117,6 +117,9 @@ class AppState:
     error_message: Optional[str] = None  # Error message to display
     error_timestamp: Optional[datetime] = None  # When the error occurred
 
+    # Search overlay state
+    search_visible: bool = False  # 搜索浮层是否可见
+
     def add_tweet(self, tweet: Tweet) -> bool:
         """Add a tweet and return True if it's new."""
         if tweet.id in self.known_ids:

@@ -12,15 +12,97 @@ def _w(s: str) -> int:
     return _pt_cwidth(s)
 
 from prompt_toolkit.application import Application, run_in_terminal
-from prompt_toolkit.layout import Layout, HSplit, VSplit, Window, Dimension as D
-from prompt_toolkit.layout.controls import UIControl, UIContent, FormattedTextControl
+from prompt_toolkit.layout import Layout, HSplit, VSplit, Window, Dimension as D, FloatContainer, Float
+from prompt_toolkit.buffer import Buffer
+from prompt_toolkit.layout.controls import UIControl, UIContent, FormattedTextControl, BufferControl
 from prompt_toolkit.formatted_text import FormattedText
+from prompt_toolkit.filters import Condition
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.styles import Style
 from prompt_toolkit.layout.screen import Point
 
 from .config import Config
 from .types import AppState, Tweet
+
+
+# ============================================================================
+# Search Overlay Components
+# ============================================================================
+
+# 搜索缓冲区
+_search_buffer = Buffer(
+    name='search',
+    multiline=False,
+)
+
+# 用于追踪当前 state 和 config（用于重建 layout）
+_search_state_ref = [None]
+_search_config_ref = [None]
+
+
+# 搜索模式过滤器 - 用于禁用主应用快捷键
+def _not_in_search_mode():
+    """检查是否不在搜索模式"""
+    if _search_state_ref[0] is not None:
+        return not _search_state_ref[0].search_visible
+    return True
+
+
+_not_searching_filter = Condition(_not_in_search_mode)
+
+# 搜索框专用快捷键
+_search_kb = KeyBindings()
+
+
+@_search_kb.add('escape')
+def _cancel_search(event):
+    """取消搜索"""
+    app = event.app
+    state = _search_buffer.state
+    state.search_visible = False
+    _search_buffer.text = ""
+
+    # 重建 layout 以隐藏搜索浮层
+    config = _search_config_ref[0]
+    if config:
+        app.layout = create_layout(state, config)
+    app.invalidate()
+
+
+@_search_kb.add('enter')
+def _confirm_search(event):
+    """确认搜索"""
+    app = event.app
+    state = _search_buffer.state
+    keyword = _search_buffer.text.strip()
+
+    if keyword:
+        state.apply_keyword_filter(keyword)
+        state.status_message = f"关键词: {keyword}"
+    else:
+        state.clear_filters()
+        state.status_message = "已清除过滤"
+
+    state.search_visible = False
+
+    # 重建 layout 以隐藏搜索浮层
+    config = _search_config_ref[0]
+    if config:
+        app.layout = create_layout(state, config)
+    app.invalidate()
+
+
+# 搜索控制器
+_search_control = BufferControl(
+    buffer=_search_buffer,
+    key_bindings=_search_kb,
+)
+
+# 搜索窗口（用于焦点管理）
+_search_window = Window(
+    content=_search_control,
+    style='class:search.box',
+)
 
 
 class TweetTableControl(UIControl):
@@ -194,22 +276,19 @@ class TweetDetailsControl(UIControl):
                         current_width = word_width
                     else:
                         # Word itself too wide (e.g. long CJK with no spaces): split by char
-                        remaining = word
-                        while remaining:
-                            chunk = ''
-                            chunk_w = 0
-                            for ch in remaining:
-                                cw = _w(ch)
-                                if chunk_w + cw <= max_width:
-                                    chunk += ch
-                                    chunk_w += cw
-                                else:
-                                    break
-                            if not chunk:  # single char wider than max_width (shouldn't happen)
-                                chunk = remaining[0]
-                                chunk_w = _w(chunk)
-                            content_lines.append(chunk)
-                            remaining = remaining[len(chunk):]
+                        chunk_chars = []
+                        chunk_w = 0
+                        for ch in word:
+                            cw = _w(ch)
+                            if chunk_w + cw > max_width and chunk_chars:
+                                content_lines.append(''.join(chunk_chars))
+                                chunk_chars = [ch]
+                                chunk_w = cw
+                            else:
+                                chunk_chars.append(ch)
+                                chunk_w += cw
+                        if chunk_chars:
+                            content_lines.append(''.join(chunk_chars))
                         current_line = ''
                         current_width = 0
 
@@ -391,13 +470,49 @@ def create_layout(state: AppState, config: Config) -> Layout:
     )
 
     # Combine into vertical layout
-    root_container = HSplit([
+    main_container = HSplit([
         header,
         table_header,
         separator,
         content_area,
         footer,
     ])
+
+    # 搜索弹窗内容
+    search_dialog = HSplit([
+        Window(height=1),  # 上边距
+        Window(
+            content=FormattedTextControl([('', '    🔍 搜索推文    ')]),
+            height=1,
+            style='class:search.title',
+        ),
+        _search_window,  # 使用模块级的搜索窗口（用于焦点管理）
+        Window(
+            content=FormattedTextControl([('', '  Enter:确认  Esc:取消  ')]),
+            height=1,
+            style='class:search.hint',
+        ),
+        Window(height=1),  # 下边距
+    ])
+
+    # 将 state 和 config 附加到全局引用（用于搜索浮层的 layout 重建）
+    _search_buffer.state = state
+    _search_state_ref[0] = state
+    _search_config_ref[0] = config
+
+    # 搜索弹窗（居中浮层）
+    search_float = Float(
+        content=search_dialog,
+    )
+
+    # 用 FloatContainer 包装（modal=True 实现热键屏蔽）
+    # 根据 state.search_visible 决定是否显示搜索浮层
+    floats = [search_float] if state.search_visible else []
+    root_container = FloatContainer(
+        content=main_container,
+        floats=floats,
+        modal=True,
+    )
 
     return Layout(root_container)
 
@@ -406,8 +521,8 @@ def create_key_bindings(state: AppState, refresh_callback: Callable, monitor=Non
     """Create keyboard shortcuts."""
     kb = KeyBindings()
 
-    @kb.add('j')
-    @kb.add('down')
+    @kb.add('j', filter=_not_searching_filter)
+    @kb.add('down', filter=_not_searching_filter)
     def _(event):
         """Move down."""
         state.select_next()
@@ -417,8 +532,8 @@ def create_key_bindings(state: AppState, refresh_callback: Callable, monitor=Non
             monitor.notifier.clear_badge()
         event.app.invalidate()
 
-    @kb.add('k')
-    @kb.add('up')
+    @kb.add('k', filter=_not_searching_filter)
+    @kb.add('up', filter=_not_searching_filter)
     def _(event):
         """Move up."""
         state.select_previous()
@@ -428,7 +543,7 @@ def create_key_bindings(state: AppState, refresh_callback: Callable, monitor=Non
             monitor.notifier.clear_badge()
         event.app.invalidate()
 
-    @kb.add('g')
+    @kb.add('g', filter=_not_searching_filter)
     def _(event):
         """Jump to top."""
         state.select_first()
@@ -438,7 +553,7 @@ def create_key_bindings(state: AppState, refresh_callback: Callable, monitor=Non
             monitor.notifier.clear_badge()
         event.app.invalidate()
 
-    @kb.add('G')
+    @kb.add('G', filter=_not_searching_filter)
     def _(event):
         """Jump to bottom."""
         state.select_last()
@@ -448,8 +563,8 @@ def create_key_bindings(state: AppState, refresh_callback: Callable, monitor=Non
             monitor.notifier.clear_badge()
         event.app.invalidate()
 
-    @kb.add('right')
-    @kb.add('pagedown')
+    @kb.add('right', filter=_not_searching_filter)
+    @kb.add('pagedown', filter=_not_searching_filter)
     def _(event):
         """Next page."""
         state.next_page()
@@ -459,8 +574,8 @@ def create_key_bindings(state: AppState, refresh_callback: Callable, monitor=Non
             monitor.notifier.clear_badge()
         event.app.invalidate()
 
-    @kb.add('left')
-    @kb.add('pageup')
+    @kb.add('left', filter=_not_searching_filter)
+    @kb.add('pageup', filter=_not_searching_filter)
     def _(event):
         """Previous page."""
         state.prev_page()
@@ -470,46 +585,46 @@ def create_key_bindings(state: AppState, refresh_callback: Callable, monitor=Non
             monitor.notifier.clear_badge()
         event.app.invalidate()
 
-    @kb.add('q')
-    @kb.add('c-c')  # Ctrl+C
+    @kb.add('q', filter=_not_searching_filter)
+    @kb.add('c-c', filter=_not_searching_filter)  # Ctrl+C
     def _(event):
         """Quit."""
         event.app.exit()
 
-    @kb.add('r')
+    @kb.add('r', filter=_not_searching_filter)
     def _(event):
         """Refresh now."""
         # Trigger immediate poll
         asyncio.create_task(refresh_callback())
         event.app.invalidate()
 
-    @kb.add(' ')  # Space
+    @kb.add(' ', filter=_not_searching_filter)  # Space
     def _(event):
         """Pause/Resume."""
         state.paused = not state.paused
         event.app.invalidate()
 
-    @kb.add('/')
+    @kb.add('/', filter=_not_searching_filter)
     def _(event):
-        """Keyword search/filter."""
-        def do_search():
-            try:
-                result = input('搜索关键词 (留空清除过滤): ')
+        """显示搜索浮层"""
+        app = event.app
+        state.search_visible = True
 
-                if result:
-                    # Apply keyword filter
-                    state.apply_keyword_filter(result)
-                else:
-                    # Clear all filters
-                    state.clear_filters()
+        # 预填充当前过滤关键词
+        _search_buffer.text = state.filter_keyword or ""
+        _search_buffer.state = state
+        _search_buffer.cursor_position = len(_search_buffer.text)
 
-                state.status_message = f"关键词: {result}" if result else "已清除过滤"
-            except (EOFError, KeyboardInterrupt):
-                pass
+        # 重建 layout 以显示搜索浮层
+        config = _search_config_ref[0]
+        if config:
+            app.layout = create_layout(state, config)
 
-        run_in_terminal(lambda: do_search())
+        # 将焦点移动到搜索框
+        app.layout.focus(_search_window)
+        app.invalidate()
 
-    @kb.add('u')
+    @kb.add('u', filter=_not_searching_filter)
     def _(event):
         """Filter by current user."""
         if state.filter_user:
@@ -525,7 +640,7 @@ def create_key_bindings(state: AppState, refresh_callback: Callable, monitor=Non
 
         event.app.invalidate()
 
-    @kb.add('o')
+    @kb.add('o', filter=_not_searching_filter)
     def _(event):
         """Open URL in browser."""
         import webbrowser
@@ -535,20 +650,20 @@ def create_key_bindings(state: AppState, refresh_callback: Callable, monitor=Non
             state.status_message = f"已打开: {url}"
         event.app.invalidate()
 
-    @kb.add('escape', 'down')
+    @kb.add('escape', 'down', filter=_not_searching_filter)
     def _(event):
         """Scroll details panel down."""
         state.details_scroll_offset += 1
         event.app.invalidate()
 
-    @kb.add('escape', 'up')
+    @kb.add('escape', 'up', filter=_not_searching_filter)
     def _(event):
         """Scroll details panel up."""
         state.details_scroll_offset = max(0, state.details_scroll_offset - 1)
         event.app.invalidate()
 
-    @kb.add('escape', 'r')
-    @kb.add('f5')
+    @kb.add('escape', 'r', filter=_not_searching_filter)
+    @kb.add('f5', filter=_not_searching_filter)
     def _(event):
         """Reload configuration."""
         if monitor:
@@ -577,6 +692,9 @@ def create_style() -> Style:
         'vseparator':     'fg:#444444',        # │ between list and details
         'details.title':  'fg:#5F87AF bold',   # Author name in details panel
         'details.label':  'fg:#606060',        # Field labels in details panel
+        'search.title':   'fg:#ffffff bold',   # Search dialog title
+        'search.box':     'bg:#5F87AF',        # Search input box background
+        'search.hint':    'fg:#888888',        # Search dialog hints
     })
 
 
