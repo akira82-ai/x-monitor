@@ -24,12 +24,11 @@
 │ @karpathy    Just shipped AI...          2h                  │
 │ @suhail      Working on AI research...    5h                  │
 │                                                             │
-│                      ┌─────────────────────┐                │
-│                      │    🔍 搜索推文       │                 │
-│                      ├─────────────────────┤                │
-│                      │ AI research         │  ← 输入框       │
-│                      └─────────────────────┘                │
-│                        Enter:确认 Esc:取消                    │
+│                        ─── 搜索 ───                          │
+│                                                                 │
+│                      > AI research                             │
+│                                                                 │
+│                    Enter 确认  Esc 取消                          │
 │                                                             │
 │ @user2       Another tweet here...          3h              │
 │                                                             │

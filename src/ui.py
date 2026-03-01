@@ -482,13 +482,21 @@ def create_layout(state: AppState, config: Config) -> Layout:
     search_dialog = HSplit([
         Window(height=1),  # 上边距
         Window(
-            content=FormattedTextControl([('', '    🔍 搜索推文    ')]),
+            content=FormattedTextControl([
+                ('class:search.title', '─── 搜索 ───'),
+            ]),
             height=1,
-            style='class:search.title',
         ),
-        _search_window,  # 使用模块级的搜索窗口（用于焦点管理）
+        Window(height=1),  # 标题与输入框之间的间距
         Window(
-            content=FormattedTextControl([('', '  Enter:确认  Esc:取消  ')]),
+            content=FormattedTextControl([
+                ('', '> '),
+            ]),
+        ),
+        _search_window,  # 搜索输入框
+        Window(height=1),  # 输入框与提示之间的间距
+        Window(
+            content=FormattedTextControl([('', 'Enter 确认  Esc 取消')]),
             height=1,
             style='class:search.hint',
         ),
@@ -692,9 +700,9 @@ def create_style() -> Style:
         'vseparator':     'fg:#444444',        # │ between list and details
         'details.title':  'fg:#5F87AF bold',   # Author name in details panel
         'details.label':  'fg:#606060',        # Field labels in details panel
-        'search.title':   'fg:#ffffff bold',   # Search dialog title
-        'search.box':     'bg:#5F87AF',        # Search input box background
-        'search.hint':    'fg:#888888',        # Search dialog hints
+        'search.title':   'fg:#5F87AF bold',   # Search dialog title (与 header 一致)
+        'search.box':     '',                  # Search input - 无背景色
+        'search.hint':    'fg:#666666',        # Search dialog hints (柔和灰色)
     })
 
 
