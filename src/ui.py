@@ -59,6 +59,12 @@ def _cancel_search(event):
     """取消搜索"""
     app = event.app
     state = _search_buffer.state
+    if state is None:
+        # 如果 state 未设置，使用引用
+        state = _search_state_ref[0]
+    if state is None:
+        return  # 无法继续
+
     state.search_visible = False
     _search_buffer.text = ""
 
@@ -96,6 +102,7 @@ def _confirm_search(event):
 _search_control = BufferControl(
     buffer=_search_buffer,
     key_bindings=_search_kb,
+    focusable=True,  # 确保可聚焦
 )
 
 # 搜索窗口（用于焦点管理）
@@ -490,7 +497,7 @@ def create_layout(state: AppState, config: Config) -> Layout:
         Window(height=1),  # 标题与输入框之间的间距
         Window(
             content=FormattedTextControl([
-                ('', '> '),
+                ('class:search.prompt', '> '),
             ]),
         ),
         _search_window,  # 搜索输入框
@@ -501,7 +508,7 @@ def create_layout(state: AppState, config: Config) -> Layout:
             style='class:search.hint',
         ),
         Window(height=1),  # 下边距
-    ])
+    ], style='class:search.background')
 
     # 将 state 和 config 附加到全局引用（用于搜索浮层的 layout 重建）
     _search_buffer.state = state
@@ -509,9 +516,8 @@ def create_layout(state: AppState, config: Config) -> Layout:
     _search_config_ref[0] = config
 
     # 搜索弹窗（居中浮层）
-    search_float = Float(
-        content=search_dialog,
-    )
+    # Float 组件的样式通过全局样式类控制
+    search_float = Float(content=search_dialog)
 
     # 用 FloatContainer 包装（modal=True 实现热键屏蔽）
     # 根据 state.search_visible 决定是否显示搜索浮层
@@ -618,10 +624,13 @@ def create_key_bindings(state: AppState, refresh_callback: Callable, monitor=Non
         app = event.app
         state.search_visible = True
 
-        # 预填充当前过滤关键词
-        _search_buffer.text = state.filter_keyword or ""
+        # 每次打开搜索框时清空输入
+        _search_buffer.text = ""
         _search_buffer.state = state
-        _search_buffer.cursor_position = len(_search_buffer.text)
+        _search_buffer.cursor_position = 0
+
+        # 确保 state 引用已设置
+        _search_state_ref[0] = state
 
         # 重建 layout 以显示搜索浮层
         config = _search_config_ref[0]
@@ -629,7 +638,22 @@ def create_key_bindings(state: AppState, refresh_callback: Callable, monitor=Non
             app.layout = create_layout(state, config)
 
         # 将焦点移动到搜索框
-        app.layout.focus(_search_window)
+        # 通过遍历 layout 中的可聚焦元素来找到搜索框
+        focused = False
+        for container in app.layout.find_all_windows():
+            if hasattr(container, 'content') and container.content == _search_control:
+                try:
+                    app.layout.focus(container)
+                    focused = True
+                    break
+                except ValueError:
+                    pass
+        # 如果还是找不到，尝试 focus_next
+        if not focused:
+            try:
+                app.layout.focus_next()
+            except Exception:
+                pass
         app.invalidate()
 
     @kb.add('u', filter=_not_searching_filter)
@@ -700,9 +724,12 @@ def create_style() -> Style:
         'vseparator':     'fg:#444444',        # │ between list and details
         'details.title':  'fg:#5F87AF bold',   # Author name in details panel
         'details.label':  'fg:#606060',        # Field labels in details panel
-        'search.title':   'fg:#5F87AF bold',   # Search dialog title (与 header 一致)
-        'search.box':     '',                  # Search input - 无背景色
-        'search.hint':    'fg:#666666',        # Search dialog hints (柔和灰色)
+        'float-background': 'bg:#1a1a1a',     # Float 组件背景色（覆盖默认黄色）
+        'search.title':     'fg:#5F87AF bold',   # Search dialog title (与 header 一致)
+        'search.background':'bg:#1a1a1a noinherit',  # 弹窗内容背景（深灰）
+        'search.prompt':    'fg:#5F87AF',        # 搜索提示符 >
+        'search.box':       'bg:#ffffff fg:#000000',  # 白色背景，黑色文字
+        'search.hint':      'fg:#666666',        # Search dialog hints (柔和灰色)
     })
 
 
