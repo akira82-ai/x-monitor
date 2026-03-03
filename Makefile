@@ -12,7 +12,7 @@ help:
 install:
 	@echo "Installing dependencies..."
 	@python3 -m venv .venv || true
-	@.venv/bin/pip install -q textual feedparser httpx toml
+	@.venv/bin/pip install -q prompt_toolkit feedparser httpx toml wcwidth pyperclip
 	@echo "✓ Dependencies installed"
 
 config:

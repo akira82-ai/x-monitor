@@ -102,6 +102,7 @@ class AppState:
     paused: bool = False
     last_poll: Optional[datetime] = None
     status_message: str = "Initializing..."
+    status_message_timestamp: Optional[datetime] = None  # When the status message was set
     new_tweets_count: int = 0
 
     # Filter states

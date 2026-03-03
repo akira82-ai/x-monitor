@@ -42,6 +42,7 @@
 - 🎯 **多用户统一监控** — 在一个时间线追踪多个账号，告别频繁切换
 - 🔔 **智能通知系统** — 爆发检测 + macOS Dock 徽章，重要动态不错过
 - 🔍 **强大过滤功能** — 过滤回复、关键词搜索、按用户专注浏览
+- 📋 **一键复制分享** — Markdown 格式复制推文，包含作者链接和时间戳
 - 💾 **状态持久化** — 增量保存机制，重启后恢复浏览进度和已读状态
 - ⚡ **零门槛使用** — 基于公开 Nitter RSS，无需申请 Twitter API
 - 🀄 **中文友好** — 详情面板按实际显示宽度折行，中英混排不截断
@@ -62,7 +63,7 @@ cd x-monitor
 
 ```bash
 python3 -m venv .venv
-.venv/bin/pip install prompt_toolkit feedparser httpx toml wcwidth
+.venv/bin/pip install prompt_toolkit feedparser httpx toml wcwidth pyperclip
 ```
 
 ## 快速开始
@@ -99,6 +100,7 @@ make run
 | `/` | 关键词搜索/过滤 |
 | `u` | 切换仅显示当前用户推文 |
 | `o` | 在浏览器中打开推文 |
+| `c` | 复制当前推文到剪贴板（Markdown 格式） |
 | `Alt+↑` / `Alt+↓` | 滚动详情面板 |
 | `Alt+R` / `F5` | 热重载配置文件 |
 | `q` / `Ctrl+C` | 退出 |

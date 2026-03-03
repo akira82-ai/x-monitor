@@ -27,7 +27,7 @@ source .venv/bin/activate
 # Check if dependencies are installed
 if ! python -c "import prompt_toolkit" 2>/dev/null; then
     echo -e "${YELLOW}Dependencies not installed. Installing...${NC}"
-    pip install -q prompt_toolkit feedparser httpx toml wcwidth
+    pip install -q prompt_toolkit feedparser httpx toml wcwidth pyperclip
     echo -e "${GREEN}✓ Dependencies installed${NC}"
 fi
 

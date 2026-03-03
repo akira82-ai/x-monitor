@@ -78,6 +78,7 @@ def _cancel_search(event):
 @_search_kb.add('enter')
 def _confirm_search(event):
     """确认搜索"""
+    from datetime import datetime, timezone
     app = event.app
     state = _search_buffer.state
     keyword = _search_buffer.text.strip()
@@ -85,9 +86,11 @@ def _confirm_search(event):
     if keyword:
         state.apply_keyword_filter(keyword)
         state.status_message = f"关键词: {keyword}"
+        state.status_message_timestamp = datetime.now(timezone.utc)
     else:
         state.clear_filters()
         state.status_message = "已清除过滤"
+        state.status_message_timestamp = datetime.now(timezone.utc)
 
     state.search_visible = False
 
@@ -328,6 +331,17 @@ def get_status_text(state: AppState) -> str:
     """Generate status bar text."""
     status_icon = "⏸" if state.paused else "▶"
 
+    # Status message (display for 3 seconds)
+    if state.status_message and state.status_message != "Initializing..." and state.status_message_timestamp:
+        from datetime import datetime, timezone, timedelta
+        now = datetime.now(timezone.utc)
+        if (now - state.status_message_timestamp) < timedelta(seconds=3):
+            return f"{status_icon} • {state.status_message}"
+        else:
+            # Clear status message after 3 seconds
+            state.status_message = "Initializing..."
+            state.status_message_timestamp = None
+
     # Error message (display for 5 seconds)
     if state.error_message and state.error_timestamp:
         from datetime import datetime, timezone, timedelta
@@ -385,7 +399,19 @@ def create_layout(state: AppState, config: Config) -> Layout:
     # Combined header and status bar
     def get_header_line():
         status = get_status_text(state)
-        return f"x-monitor | {status}"
+        # 检查是否是状态消息（包含特定关键词）
+        status_keywords = ["已复制", "已打开", "已清除", "配置已重载", "关键词:", "仅显示", "错误:"]
+        is_status_msg = any(keyword in status for keyword in status_keywords)
+
+        if is_status_msg:
+            # 状态消息使用醒目的样式
+            return FormattedText([
+                ('class:header', 'x-monitor | '),
+                ('class:status.highlight', status)
+            ])
+        else:
+            # 普通状态使用默认样式
+            return f"x-monitor | {status}"
 
     header = Window(
         content=FormattedTextControl(get_header_line),
@@ -469,7 +495,7 @@ def create_layout(state: AppState, config: Config) -> Layout:
     # Footer (keybindings)
     footer = Window(
         content=FormattedTextControl(
-            lambda: "Q:退出  R:刷新  Space:暂停  ↑↓:选择  ←→:翻页  g/G:首尾  /:搜索  u:用户过滤  o:打开URL  Alt+↑↓:滚动详情  Alt+R:重载配置"
+            lambda: "Q:退出  R:刷新  Space:暂停  ↑↓:选择  ←→:翻页  g/G:首尾  /:搜索  u:用户过滤  o:打开URL  c:复制  Alt+↑↓:滚动详情  Alt+R:重载配置"
         ),
         height=D.exact(1),
         style='class:footer',
@@ -529,6 +555,27 @@ def create_layout(state: AppState, config: Config) -> Layout:
     )
 
     return Layout(root_container)
+
+
+def format_tweet_as_markdown(tweet: Tweet) -> str:
+    """Format tweet as Markdown for clipboard."""
+    url = f'https://x.com/{tweet.author}/status/{tweet.id}'
+    timestamp = tweet.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+
+    # 添加徽章
+    badges = []
+    if tweet.is_retweet:
+        badges.append("🔁")
+    if tweet.is_reply:
+        badges.append("💬")
+    badge_str = " " + " ".join(badges) if badges else ""
+
+    # 生成 Markdown
+    markdown = f"**[@{tweet.author}]({url})**{badge_str}\n"
+    markdown += f"📅 {timestamp}\n\n"
+    markdown += tweet.content
+
+    return markdown
 
 
 def create_key_bindings(state: AppState, refresh_callback: Callable, monitor=None) -> KeyBindings:
@@ -659,16 +706,19 @@ def create_key_bindings(state: AppState, refresh_callback: Callable, monitor=Non
     @kb.add('u', filter=_not_searching_filter)
     def _(event):
         """Filter by current user."""
+        from datetime import datetime, timezone
         if state.filter_user:
             # Clear all filters
             state.clear_filters()
             state.status_message = "已清除用户过滤"
+            state.status_message_timestamp = datetime.now(timezone.utc)
         else:
             # Set filter to current user
             if state.selected_tweet:
                 target_user = state.selected_tweet.author
                 state.apply_user_filter(target_user)
                 state.status_message = f"仅显示 @{target_user} 的推文"
+                state.status_message_timestamp = datetime.now(timezone.utc)
 
         event.app.invalidate()
 
@@ -676,10 +726,31 @@ def create_key_bindings(state: AppState, refresh_callback: Callable, monitor=Non
     def _(event):
         """Open URL in browser."""
         import webbrowser
+        from datetime import datetime, timezone
         if state.selected_tweet:
             url = f'https://x.com/{state.selected_tweet.author}/status/{state.selected_tweet.id}'
             webbrowser.open(url)
             state.status_message = f"已打开: {url}"
+            state.status_message_timestamp = datetime.now(timezone.utc)
+        event.app.invalidate()
+
+    @kb.add('c', filter=_not_searching_filter)
+    def _(event):
+        """Copy tweet details to clipboard as Markdown."""
+        if state.selected_tweet:
+            try:
+                import pyperclip
+                from datetime import datetime, timezone
+                markdown = format_tweet_as_markdown(state.selected_tweet)
+                pyperclip.copy(markdown)
+                state.status_message = "已复制到剪贴板 (Markdown)"
+                state.status_message_timestamp = datetime.now(timezone.utc)
+            except ImportError:
+                state.status_message = "错误: 未安装 pyperclip 库"
+                state.status_message_timestamp = datetime.now(timezone.utc)
+            except Exception as e:
+                state.status_message = f"复制失败: {str(e)}"
+                state.status_message_timestamp = datetime.now(timezone.utc)
         event.app.invalidate()
 
     @kb.add('escape', 'down', filter=_not_searching_filter)
@@ -698,14 +769,18 @@ def create_key_bindings(state: AppState, refresh_callback: Callable, monitor=Non
     @kb.add('f5', filter=_not_searching_filter)
     def _(event):
         """Reload configuration."""
+        from datetime import datetime, timezone
         if monitor:
             try:
                 monitor.reload_config()
                 state.status_message = "配置已重载"
+                state.status_message_timestamp = datetime.now(timezone.utc)
             except Exception as e:
                 state.status_message = f"重载失败: {e}"
+                state.status_message_timestamp = datetime.now(timezone.utc)
         else:
             state.status_message = "无法重载配置 (monitor 未初始化)"
+            state.status_message_timestamp = datetime.now(timezone.utc)
         event.app.invalidate()
 
     return kb
@@ -715,6 +790,7 @@ def create_style() -> Style:
     """Create color scheme."""
     return Style.from_dict({
         'header':         'fg:#5F87AF bold',   # App title + status bar
+        'status.highlight': 'fg:#00FF00 bold', # 状态消息高亮（亮绿色）
         'table_header':   'fg:#888888',        # Column labels
         'separator':      'fg:#444444',        # Horizontal rule
         'footer':         'fg:#606060',        # Key hint bar
