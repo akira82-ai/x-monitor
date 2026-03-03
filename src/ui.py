@@ -329,14 +329,12 @@ class TweetDetailsControl(UIControl):
 
 def get_status_text(state: AppState) -> str:
     """Generate status bar text."""
-    status_icon = "⏸" if state.paused else "▶"
-
     # Status message (display for 3 seconds)
     if state.status_message and state.status_message != "Initializing..." and state.status_message_timestamp:
         from datetime import datetime, timezone, timedelta
         now = datetime.now(timezone.utc)
         if (now - state.status_message_timestamp) < timedelta(seconds=3):
-            return f"{status_icon} • {state.status_message}"
+            return f"▶ • {state.status_message}"
         else:
             # Clear status message after 3 seconds
             state.status_message = "Initializing..."
@@ -390,7 +388,7 @@ def get_status_text(state: AppState) -> str:
     if state.filter_user:
         filter_info += f" [用户: @{state.filter_user}]"
 
-    return f"{status_icon} • {new_count}{total}{page_info}{last_update}{filter_info}"
+    return f"▶ • {new_count}{total}{page_info}{last_update}{filter_info}"
 
 
 def create_layout(state: AppState, config: Config) -> Layout:
@@ -495,7 +493,7 @@ def create_layout(state: AppState, config: Config) -> Layout:
     # Footer (keybindings)
     footer = Window(
         content=FormattedTextControl(
-            lambda: "Q:退出  R:刷新  Space:暂停  ↑↓:选择  ←→:翻页  g/G:首尾  /:搜索  u:用户过滤  o:打开URL  c:复制  Alt+↑↓:滚动详情  Alt+R:重载配置"
+            lambda: "Q:退出  ↑↓:选择  ←→:翻页  /:搜索  u:用户过滤  o:打开URL  c:复制  Alt+↑↓:滚动详情"
         ),
         height=D.exact(1),
         style='class:footer',
@@ -578,7 +576,7 @@ def format_tweet_as_markdown(tweet: Tweet) -> str:
     return markdown
 
 
-def create_key_bindings(state: AppState, refresh_callback: Callable, monitor=None) -> KeyBindings:
+def create_key_bindings(state: AppState, monitor=None) -> KeyBindings:
     """Create keyboard shortcuts."""
     kb = KeyBindings()
 
@@ -598,26 +596,6 @@ def create_key_bindings(state: AppState, refresh_callback: Callable, monitor=Non
     def _(event):
         """Move up."""
         state.select_previous()
-        state.details_scroll_offset = 0  # Reset scroll offset
-        state.mark_selected_as_read()
-        if state.new_tweets_count == 0 and monitor:
-            monitor.notifier.clear_badge()
-        event.app.invalidate()
-
-    @kb.add('g', filter=_not_searching_filter)
-    def _(event):
-        """Jump to top."""
-        state.select_first()
-        state.details_scroll_offset = 0  # Reset scroll offset
-        state.mark_selected_as_read()
-        if state.new_tweets_count == 0 and monitor:
-            monitor.notifier.clear_badge()
-        event.app.invalidate()
-
-    @kb.add('G', filter=_not_searching_filter)
-    def _(event):
-        """Jump to bottom."""
-        state.select_last()
         state.details_scroll_offset = 0  # Reset scroll offset
         state.mark_selected_as_read()
         if state.new_tweets_count == 0 and monitor:
@@ -651,19 +629,6 @@ def create_key_bindings(state: AppState, refresh_callback: Callable, monitor=Non
     def _(event):
         """Quit."""
         event.app.exit()
-
-    @kb.add('r', filter=_not_searching_filter)
-    def _(event):
-        """Refresh now."""
-        # Trigger immediate poll
-        asyncio.create_task(refresh_callback())
-        event.app.invalidate()
-
-    @kb.add(' ', filter=_not_searching_filter)  # Space
-    def _(event):
-        """Pause/Resume."""
-        state.paused = not state.paused
-        event.app.invalidate()
 
     @kb.add('/', filter=_not_searching_filter)
     def _(event):
@@ -765,24 +730,6 @@ def create_key_bindings(state: AppState, refresh_callback: Callable, monitor=Non
         state.details_scroll_offset = max(0, state.details_scroll_offset - 1)
         event.app.invalidate()
 
-    @kb.add('escape', 'r', filter=_not_searching_filter)
-    @kb.add('f5', filter=_not_searching_filter)
-    def _(event):
-        """Reload configuration."""
-        from datetime import datetime, timezone
-        if monitor:
-            try:
-                monitor.reload_config()
-                state.status_message = "配置已重载"
-                state.status_message_timestamp = datetime.now(timezone.utc)
-            except Exception as e:
-                state.status_message = f"重载失败: {e}"
-                state.status_message_timestamp = datetime.now(timezone.utc)
-        else:
-            state.status_message = "无法重载配置 (monitor 未初始化)"
-            state.status_message_timestamp = datetime.now(timezone.utc)
-        event.app.invalidate()
-
     return kb
 
 
@@ -825,29 +772,27 @@ async def poll_tweets_background(state: AppState, config: Config, app: Applicati
             if time_until_next_poll > 0:
                 await asyncio.sleep(time_until_next_poll)
 
-            # 检查是否暂停，如果暂停则跳过这次轮询但更新时间
-            if not state.paused:
-                # Set loading state
-                state.is_loading = True
-                app.invalidate()
+            # Set loading state
+            state.is_loading = True
+            app.invalidate()
 
-                # Clear any previous error
-                state.error_message = None
-                state.error_timestamp = None
+            # Clear any previous error
+            state.error_message = None
+            state.error_timestamp = None
 
-                try:
-                    # Call the refresh callback
-                    await refresh_callback()
-                except Exception as e:
-                    # Set error state
-                    state.error_message = str(e)
-                    state.error_timestamp = datetime.now(timezone.utc)
-                finally:
-                    # Clear loading state
-                    state.is_loading = False
+            try:
+                # Call the refresh callback
+                await refresh_callback()
+            except Exception as e:
+                # Set error state
+                state.error_message = str(e)
+                state.error_timestamp = datetime.now(timezone.utc)
+            finally:
+                # Clear loading state
+                state.is_loading = False
 
-                # Trigger UI refresh
-                app.invalidate()
+            # Trigger UI refresh
+            app.invalidate()
 
             # 更新上次轮询时间
             last_poll_time = time.time()
@@ -879,7 +824,7 @@ async def run_ui(config: Config, state: AppState, refresh_callback: Callable, mo
     # Create application
     app = Application(
         layout=create_layout(state, config),
-        key_bindings=create_key_bindings(state, refresh_callback, monitor),
+        key_bindings=create_key_bindings(state, monitor),
         style=create_style(),
         full_screen=True,
         mouse_support=False,  # Keyboard only

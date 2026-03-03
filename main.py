@@ -74,8 +74,9 @@ async def main_async() -> None:
     monitor = Monitor(config, state, state_manager)
 
     # Create refresh callback
-    async def do_refresh() -> None:
-        await monitor.poll_once()
+    async def do_refresh() -> int:
+        """Refresh tweets and return count of new tweets."""
+        return await monitor.poll_once()
 
     # Initial load with progress
     total = len(config.users.handles)

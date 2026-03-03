@@ -35,16 +35,8 @@ class Monitor:
         """Check if the monitor is running."""
         return self._running
 
-    def toggle_pause(self) -> None:
-        """Toggle pause state."""
-        self.state.paused = not self.state.paused
-        self.state.status_message = "Paused" if self.state.paused else "Running"
-
     async def poll_once(self, progress_callback=None) -> int:
         """Perform a single poll for new tweets. Returns new tweet count."""
-        if self.state.paused:
-            return 0
-
         total_new = 0
         new_tweets_list = []  # 跟踪新增推文
 
@@ -145,10 +137,8 @@ class Monitor:
 
         while self._running:
             await asyncio.sleep(interval)
-
-            if not self.state.paused:
-                await self.poll_once()
-                on_update()
+            await self.poll_once()
+            on_update()
 
     def start(self, on_update: Callable[[], None]) -> asyncio.Task:
         """Start the monitoring loop in a background task."""
