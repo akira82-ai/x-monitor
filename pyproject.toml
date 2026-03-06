@@ -1,6 +1,6 @@
 [project]
 name = "x-monitor"
-version = "0.2.2"
+version = "0.2.3"
 description = "X (Twitter) User Monitoring CLI Dashboard"
 authors = [{name = "AI Agent"}]
 requires-python = ">=3.10"
