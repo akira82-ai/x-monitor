@@ -72,6 +72,11 @@ class Monitor:
             removed_tweets = self.state.tweets[max_tweets:]
             removed_new_count = sum(1 for t in removed_tweets if t.is_new)
             self.state.tweets = self.state.tweets[:max_tweets]
+
+            # 从 known_ids 中移除被裁剪推文的 ID
+            removed_ids = {t.id for t in removed_tweets}
+            self.state.known_ids -= removed_ids
+
             # Adjust the counter
             self.state.new_tweets_count = max(0, self.state.new_tweets_count - removed_new_count)
 
