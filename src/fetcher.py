@@ -12,6 +12,9 @@ from .types import Tweet
 class TweetFetcher:
     """Fetch tweets from Nitter RSS feeds."""
 
+    # 需要清除的 SOCKS 代理环境变量名
+    _SOCKS_PROXY_ENV_VARS = ('all_proxy', 'ALL_PROXY')
+
     def __init__(self, nitter_instance: str, timeout: float = 10.0):
         """Initialize the fetcher with a Nitter instance URL."""
         self.nitter_instance = nitter_instance.rstrip("/")
@@ -20,6 +23,10 @@ class TweetFetcher:
         # Use HTTP/HTTPS proxy from environment, but not SOCKS
         # This avoids the socksio dependency issue
         import os
+        # 清除 all_proxy 环境变量，避免 httpx 尝试使用 SOCKS 代理
+        for env_var in self._SOCKS_PROXY_ENV_VARS:
+            os.environ.pop(env_var, None)
+
         proxy = os.environ.get('https_proxy') or os.environ.get('http_proxy')
 
         # Create client with HTTP proxy support only

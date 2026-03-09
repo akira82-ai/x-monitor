@@ -1,7 +1,7 @@
 """State persistence manager for x-monitor."""
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import List, Optional
 
@@ -10,6 +10,9 @@ from .types import AppState, Tweet
 
 class StateManager:
     """管理应用状态的持久化."""
+
+    # 推文 ID 过期时间（天），超过此时间的推文 ID 会从 known_ids 中移除
+    KNOWN_IDS_EXPIRY_DAYS = 7
 
     def __init__(self, max_tweets: int = 1000, merge_threshold: int = 50):
         """初始化 StateManager.
@@ -48,11 +51,18 @@ class StateManager:
         Args:
             state: 要保存的 AppState
         """
-        # 限制推文数量
+        # 限制推文数量（只裁剪 tweets 列表，不影响 known_ids）
         if len(state.tweets) > self.max_tweets:
+            removed_new_count = sum(1 for t in state.tweets[self.max_tweets:] if t.is_new)
             state.tweets = state.tweets[:self.max_tweets]
-            # 重建 known_ids
-            state.known_ids = {t.id for t in state.tweets}
+            # 不再重建 known_ids，保留已裁剪推文的 ID
+            # 这样可以避免这些推文在后续轮询中被重复添加
+            # 调整计数器，确保与实际 is_new 标志一致
+            state.new_tweets_count = max(0, state.new_tweets_count - removed_new_count)
+
+        # 清理过期的 known_ids：只保留当前 tweets 列表中的 ID
+        # 这样被裁剪的推文可以重新出现，避免永久丢失
+        self._cleanup_known_ids(state)
 
         try:
             # 确保目录存在
@@ -69,6 +79,38 @@ class StateManager:
         """清除保存的状态."""
         if self.state_path.exists():
             self.state_path.unlink()
+
+    def _get_expiry_threshold(self) -> datetime:
+        """计算过期时间阈值.
+
+        Returns:
+            当前时间减去 KNOWN_IDS_EXPIRY 天后的时间戳
+        """
+        return datetime.now(timezone.utc) - timedelta(days=self.KNOWN_IDS_EXPIRY_DAYS)
+
+    def _cleanup_known_ids(self, state: AppState) -> None:
+        """清理过期的 known_ids.
+
+        只保留当前 tweets 列表中的推文 ID。
+        这样被裁剪的推文可以重新出现，避免永久丢失。
+
+        Args:
+            state: 当前的 AppState
+        """
+        if not state.tweets:
+            # 如果没有推文，清空所有 known_ids
+            state.known_ids.clear()
+            return
+
+        # 计算过期时间（7天前）
+        expiry_threshold = self._get_expiry_threshold()
+
+        # 获取当前推文列表中的所有 ID
+        current_tweet_ids = {tweet.id for tweet in state.tweets}
+
+        # 保留当前推文列表中的 ID
+        # 这样被裁剪的推文可以重新出现，避免永久丢失
+        state.known_ids = state.known_ids & current_tweet_ids
 
     def save_incremental(self, state: AppState, new_tweets: List[Tweet]) -> None:
         """增量保存：只保存新增的推文.
@@ -133,6 +175,9 @@ class StateManager:
                 for tweet in state.tweets:
                     if tweet.id in main_tweets:
                         main_tweets[tweet.id]["is_new"] = tweet.is_new
+
+                # 清理过期的 known_ids（在合并前）
+                self._cleanup_known_ids(state)
 
             # 排序并限制数量
             tweets_list = sorted(
@@ -201,12 +246,38 @@ class StateManager:
             except (json.JSONDecodeError, KeyError, ValueError):
                 pass
 
-        # 限制推文数量
+        # 限制推文数量（只裁剪 tweets 列表，不影响 known_ids）
         if len(state.tweets) > self.max_tweets:
+            removed_new_count = sum(1 for t in state.tweets[self.max_tweets:] if t.is_new)
             state.tweets = state.tweets[:self.max_tweets]
-            state.known_ids = {t.id for t in state.tweets}
+            # 不再重建 known_ids，保留已裁剪推文的 ID
+            # 这样可以避免这些推文在后续轮询中被重复添加
+            # 调整计数器，确保与实际 is_new 标志一致
+            state.new_tweets_count = max(0, state.new_tweets_count - removed_new_count)
+
+        # 清理老推文的未读标记（超过 7 天的推文不应该标记为未读）
+        self._cleanup_old_new_tweets(state)
 
         # 重新计算以确保 new_tweets_count 与实际 is_new 标志一致
         state.new_tweets_count = sum(1 for t in state.tweets if t.is_new)
 
         return state
+
+    def _cleanup_old_new_tweets(self, state: AppState) -> None:
+        """清理老推文的未读标记.
+
+        将超过 7 天的推文的 is_new 标记设置为 False。
+
+        Args:
+            state: 当前的 AppState
+        """
+        if not state.tweets:
+            return
+
+        # 计算过期时间（7天前）
+        expiry_threshold = self._get_expiry_threshold()
+
+        # 清理老推文的未读标记
+        for tweet in state.tweets:
+            if tweet.is_new and tweet.timestamp < expiry_threshold:
+                tweet.is_new = False
