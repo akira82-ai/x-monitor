@@ -239,7 +239,11 @@ class StateManager:
                 for t_dict in data.get("tweets", []):
                     tweet = Tweet.from_dict(t_dict)
                     if tweet.id not in state.known_ids:
-                        state.add_tweet(tweet)
+                        # 直接添加，不使用 add_tweet（避免覆盖 is_new）
+                        state.known_ids.add(tweet.id)
+                        state.tweets.insert(0, tweet)
+                        if tweet.is_new:
+                            state.new_tweets_count += 1
 
                 # 清空已应用的增量文件
                 self.incremental_path.unlink()
