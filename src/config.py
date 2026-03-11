@@ -17,11 +17,14 @@ class GeneralConfig:
     max_saved_tweets: int = 1000  # 最大保存推文数
     incremental_save: bool = True  # 是否使用增量保存
     merge_threshold: int = 50  # 合并增量文件的阈值
+    auto_merge_interval_sec: int = 60  # 自动合并增量文件的间隔（秒），0 表示禁用
 
     def validate(self) -> None:
         """Validate general configuration."""
         if self.poll_interval_sec < 10:
             raise ValueError("poll_interval_sec must be at least 10 seconds")
+        if self.auto_merge_interval_sec < 0:
+            raise ValueError("auto_merge_interval_sec must be non-negative")
 
 
 @dataclass
@@ -125,6 +128,7 @@ class Config:
                 "max_saved_tweets": self.general.max_saved_tweets,
                 "incremental_save": self.general.incremental_save,
                 "merge_threshold": self.general.merge_threshold,
+                "auto_merge_interval_sec": self.general.auto_merge_interval_sec,
             },
             "users": {
                 "handles": self.users.handles,

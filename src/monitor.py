@@ -1,6 +1,8 @@
 """Monitoring logic for x-monitor."""
 
 import asyncio
+import logging
+import time
 from datetime import datetime, timezone
 from typing import Callable, Optional
 
@@ -8,6 +10,9 @@ from .config import Config
 from .fetcher import TweetFetcher
 from .types import AppState
 from .notifier import Notifier
+
+
+logger = logging.getLogger(__name__)
 
 
 # Import StateManager for type hints
@@ -29,6 +34,8 @@ class Monitor:
         self.notifier = Notifier(config)
         self._running = False
         self._task: Optional[asyncio.Task] = None
+        self._auto_merge_task: Optional[asyncio.Task] = None
+        self._last_merge_time: float = time.time()
 
     @property
     def is_running(self) -> bool:
@@ -146,10 +153,31 @@ class Monitor:
             await self.poll_once()
             on_update()
 
+    async def _auto_merge_loop(self) -> None:
+        """后台定期合并增量文件."""
+        while True:
+            interval = self.config.general.auto_merge_interval_sec
+            if interval > 0:
+                await asyncio.sleep(interval)
+                try:
+                    # 检查是否有需要合并的内容
+                    if self.state_manager and self.state_manager.incremental_path.exists():
+                        logger.debug("Starting auto-merge of incremental state")
+                        self.state_manager._merge_incremental(self.state)
+                        logger.debug(f"Auto-merge completed, {len(self.state.tweets)} tweets saved")
+                except Exception as e:
+                    logger.error(f"Auto-merge failed: {e}")
+            else:
+                await asyncio.sleep(60)  # 禁用时每60秒检查一次配置
+
     def start(self, on_update: Callable[[], None]) -> asyncio.Task:
         """Start the monitoring loop in a background task."""
         if self._task and not self._task.done():
             return self._task
+
+        # 启动自动合并任务
+        if self.config.general.auto_merge_interval_sec > 0:
+            self._auto_merge_task = asyncio.create_task(self._auto_merge_loop())
 
         self._task = asyncio.create_task(self._run_loop(on_update))
         return self._task
@@ -157,6 +185,15 @@ class Monitor:
     async def stop(self) -> None:
         """Stop the monitoring loop."""
         self._running = False
+
+        # 取消自动合并任务
+        if self._auto_merge_task:
+            self._auto_merge_task.cancel()
+            try:
+                await self._auto_merge_task
+            except asyncio.CancelledError:
+                pass
+            self._auto_merge_task = None
 
         if self._task:
             self._task.cancel()
