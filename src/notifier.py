@@ -37,6 +37,10 @@ class BurstDetector:
         """当前时间窗口内的推文数量。"""
         return len(self._timestamps)
 
+    def is_bursting(self) -> bool:
+        """检查当前是否处于爆发状态。"""
+        return len(self._timestamps) > self.threshold
+
 
 class TitleBadgeManager:
     """管理终端窗口标题和 Dock 徽章（macOS）。"""
@@ -129,26 +133,33 @@ class Notifier:
             self._desktop_notify(tweet)
 
     def notify_batch(self, new_count: int, total_unread: int) -> None:
-        """批量通知接口：处理标题、徽章和爆发检测。"""
-        if not self.config.notification.enable or new_count <= 0:
+        """批量通知接口：处理标题、徽章和爆发检测。
+
+        Args:
+            new_count: 本轮轮询到的新推文数
+            total_unread: 内存中所有未读推文数
+        """
+        if not self.config.notification.enable:
             return
 
-        # 爆发检测
-        is_burst = self._burst_detector.record(new_count)
+        # 爆发检测和声音/视觉通知（仅在真正有新消息时）
+        if new_count > 0:
+            is_burst = self._burst_detector.record(new_count)
 
-        # 爆发模式：多次响铃
-        if self.config.notification.sound:
-            if is_burst and self.config.notification.burst_sound:
-                self._bell_burst()
-            else:
-                self._bell()
+            # 爆发模式：多次响铃
+            if self.config.notification.sound:
+                if is_burst and self.config.notification.burst_sound:
+                    self._bell_burst()
+                else:
+                    self._bell()
 
-        # 视觉闪烁
-        if self.config.notification.flash:
-            self._flash()
+            # 视觉闪烁
+            if self.config.notification.flash:
+                self._flash()
 
-        # 更新标题和徽章
+        # 更新标题和徽章（无论是否有新消息，都要反映当前未读状态）
         if self.config.notification.title_badge:
+            is_burst = self._burst_detector.is_bursting() if new_count > 0 else False
             self._title_badge.update(total_unread, is_burst)
 
     def clear_badge(self) -> None:

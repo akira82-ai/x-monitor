@@ -94,6 +94,10 @@ async def main_async() -> None:
         print(f"\nError during initial load: {e}")
         print("Starting UI anyway...")
 
+    # 初始加载后，如果有未读推文，更新通知状态
+    if state.new_tweets_count > 0:
+        monitor.notifier.notify_batch(0, state.new_tweets_count)
+
     # Run the UI
     try:
         await run_ui(config, state, do_refresh, monitor)

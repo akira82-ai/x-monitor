@@ -835,10 +835,6 @@ async def run_ui(config: Config, state: AppState, refresh_callback: Callable, mo
         poll_tweets_background(state, config, app, refresh_callback)
     )
 
-    # 启动时恢复标题状态（如果有未读推文）
-    if state.new_tweets_count > 0 and monitor:
-        monitor.notifier.notify_batch(0, state.new_tweets_count)
-
     # Start UI update task (for relative time)
     ui_update_task = asyncio.create_task(
         update_ui_background(app)

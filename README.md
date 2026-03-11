@@ -8,7 +8,7 @@
 ║   ██╔╝ ██╗      ██║ ╚═╝ ██║╚██████╔╝██║ ╚████║██║   ██║   ╚██████╔╝██║  ██║║
 ║   ╚═╝  ╚═╝      ╚═╝     ╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝║
 ║                                                                              ║
-║                    版本: v0.2.4  |  更新: 2026-03-11                         ║
+║                    版本: v0.2.5  |  更新: 2026-03-11                         ║
 ║                                                                              ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 ```
@@ -147,10 +147,19 @@ nitter_instance = "https://nitter.poast.org"
 **需要使用代理？**
 - 设置系统环境变量 `https_proxy` 或 `http_proxy`（仅支持 HTTP/HTTPS）
 
+**通知不工作？**
+- 检查配置文件中 `[notification]` 部分的 `enable = true`
+- 确保 `title_badge = true` 以显示窗口标题和 Dock 徽章
+- 运行测试脚本验证通知功能：`./test_notification_fix.py`
+
 **运行测试：**
 
 ```bash
-.venv/bin/python3 test.py
+# 通知功能测试
+.venv/bin/python3 test_notification_fix.py
+
+# 单元测试
+.venv/bin/python3 -m pytest tests/
 ```
 
 ## 📄 License
