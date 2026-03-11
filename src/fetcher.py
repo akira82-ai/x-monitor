@@ -3,33 +3,33 @@
 import hashlib
 import feedparser
 import httpx
+import logging
 from datetime import datetime, timezone
 from typing import Optional, List
 
 from .types import Tweet
 
 
+logger = logging.getLogger(__name__)
+
+
 class TweetFetcher:
     """Fetch tweets from Nitter RSS feeds."""
 
-    # 需要清除的 SOCKS 代理环境变量名
-    _SOCKS_PROXY_ENV_VARS = ('all_proxy', 'ALL_PROXY')
+    # RSS 响应大小限制（10MB）
+    MAX_RSS_SIZE = 10 * 1024 * 1024
 
     def __init__(self, nitter_instance: str, timeout: float = 10.0):
         """Initialize the fetcher with a Nitter instance URL."""
         self.nitter_instance = nitter_instance.rstrip("/")
         self.timeout = timeout
 
-        # Use HTTP/HTTPS proxy from environment, but not SOCKS
-        # This avoids the socksio dependency issue
+        # 获取 HTTP/HTTPS 代理（不支持 SOCKS）
         import os
-        # 清除 all_proxy 环境变量，避免 httpx 尝试使用 SOCKS 代理
-        for env_var in self._SOCKS_PROXY_ENV_VARS:
-            os.environ.pop(env_var, None)
-
         proxy = os.environ.get('https_proxy') or os.environ.get('http_proxy')
 
         # Create client with HTTP proxy support only
+        # trust_env=False 防止 httpx 自动读取环境变量（避免 SOCKS 代理问题）
         self.client = httpx.AsyncClient(
             timeout=timeout,
             headers={
@@ -37,7 +37,8 @@ class TweetFetcher:
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             },
             follow_redirects=True,
-            proxy=proxy,  # Use HTTP/HTTPS proxy explicitly
+            proxy=proxy,  # 显式传递 HTTP/HTTPS 代理
+            trust_env=False,  # 禁用环境变量自动检测
         )
 
     async def fetch_tweets(self, handle: str) -> List[Tweet]:
@@ -48,16 +49,25 @@ class TweetFetcher:
             response = await self.client.get(rss_url)
             response.raise_for_status()
 
+            # 检查响应大小
+            content_size = len(response.content)
+            if content_size > self.MAX_RSS_SIZE:
+                logger.warning(
+                    f"RSS feed too large for {handle}: {content_size} bytes "
+                    f"(max: {self.MAX_RSS_SIZE} bytes)"
+                )
+                return []
+
             return self._parse_rss(response.text, handle)
 
         except httpx.HTTPStatusError as e:
-            # Silent error handling
+            logger.debug(f"HTTP error fetching {handle}: {e}")
             return []
         except httpx.RequestError as e:
-            # Silent error handling
+            logger.debug(f"Request error fetching {handle}: {e}")
             return []
         except Exception as e:
-            # Silent error handling
+            logger.debug(f"Unexpected error fetching {handle}: {e}")
             return []
 
     def _parse_rss(self, content: str, handle: str) -> List[Tweet]:

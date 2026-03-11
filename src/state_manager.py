@@ -1,6 +1,7 @@
 """State persistence manager for x-monitor."""
 
 import json
+import logging
 import os
 import tempfile
 from datetime import datetime, timezone, timedelta
@@ -8,6 +9,9 @@ from pathlib import Path
 from typing import List, Optional
 
 from .types import AppState, Tweet
+
+
+logger = logging.getLogger(__name__)
 
 
 def atomic_write(path: Path, content: str) -> None:
@@ -236,12 +240,18 @@ class StateManager:
                 json.dumps(main_data, indent=2, ensure_ascii=False)
             )
 
-            # 清空增量文件
+            # 主文件写入成功后，才删除增量文件
+            # 确保即使失败也不会丢失增量数据
             if self.incremental_path.exists():
-                self.incremental_path.unlink()
+                try:
+                    self.incremental_path.unlink()
+                    logger.debug("Incremental file merged and deleted successfully")
+                except OSError as e:
+                    logger.warning(f"Failed to delete incremental file: {e}")
 
-        except (OSError, IOError, json.JSONDecodeError):
-            pass
+        except (OSError, IOError, json.JSONDecodeError) as e:
+            logger.error(f"Failed to merge incremental file: {e}")
+            # 如果合并失败，保留增量文件，下次启动时重试
 
     def load(self) -> Optional[AppState]:
         """加载状态（主文件 + 增量文件）.
