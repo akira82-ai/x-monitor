@@ -3,6 +3,7 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, List
+from urllib.parse import urlparse
 import toml
 
 
@@ -25,6 +26,18 @@ class GeneralConfig:
             raise ValueError("poll_interval_sec must be at least 10 seconds")
         if self.auto_merge_interval_sec < 0:
             raise ValueError("auto_merge_interval_sec must be non-negative")
+
+        # Validate nitter_instance URL
+        try:
+            parsed = urlparse(self.nitter_instance)
+            if parsed.scheme not in ('http', 'https'):
+                raise ValueError("nitter_instance must use http or https protocol")
+            if not parsed.netloc:
+                raise ValueError("nitter_instance must be a valid URL")
+        except Exception as e:
+            if isinstance(e, ValueError):
+                raise
+            raise ValueError(f"Invalid nitter_instance URL: {e}")
 
 
 @dataclass

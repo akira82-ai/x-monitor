@@ -1,11 +1,42 @@
 """State persistence manager for x-monitor."""
 
 import json
+import os
+import tempfile
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import List, Optional
 
 from .types import AppState, Tweet
+
+
+def atomic_write(path: Path, content: str) -> None:
+    """原子性写入文件.
+
+    先写入临时文件，然后原子性重命名，确保写入过程不会损坏原文件。
+
+    Args:
+        path: 目标文件路径
+        content: 要写入的内容
+    """
+    # 确保目录存在
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    # 创建临时文件
+    fd, temp_path = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
+    try:
+        # 写入内容
+        with os.fdopen(fd, 'w') as f:
+            f.write(content)
+        # 原子性重命名（覆盖原文件）
+        os.replace(temp_path, str(path))
+    except Exception:
+        # 失败时清理临时文件
+        try:
+            os.unlink(temp_path)
+        except OSError:
+            pass
+        raise
 
 
 class StateManager:
@@ -65,12 +96,9 @@ class StateManager:
         self._cleanup_known_ids(state)
 
         try:
-            # 确保目录存在
-            self.state_path.parent.mkdir(parents=True, exist_ok=True)
-
-            # 序列化并保存
+            # 序列化并保存（使用原子写入）
             data = state.to_dict()
-            self.state_path.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+            atomic_write(self.state_path, json.dumps(data, indent=2, ensure_ascii=False))
         except (OSError, IOError):
             # 静默处理保存失败
             pass
@@ -131,13 +159,13 @@ class StateManager:
             # 追加新推文
             all_tweets = existing + [t.to_dict() for t in new_tweets]
 
-            # 写回增量文件
-            self.incremental_path.parent.mkdir(parents=True, exist_ok=True)
+            # 写回增量文件（使用原子写入）
             data = {
                 "tweets": all_tweets,
                 "last_update": datetime.now(timezone.utc).isoformat()
             }
-            self.incremental_path.write_text(
+            atomic_write(
+                self.incremental_path,
                 json.dumps(data, indent=2, ensure_ascii=False)
             )
 
@@ -202,7 +230,9 @@ class StateManager:
                 main_data["details_scroll_offset"] = state.details_scroll_offset
                 main_data["known_ids"] = list(state.known_ids)
 
-            self.state_path.write_text(
+            # 更新主文件（使用原子写入）
+            atomic_write(
+                self.state_path,
                 json.dumps(main_data, indent=2, ensure_ascii=False)
             )
 

@@ -83,9 +83,9 @@ class TweetFetcher:
 
                 # Parse timestamp
                 timestamp = datetime.now(timezone.utc)
-                if "published" in entry:
+                if "published" in entry and entry.published_parsed:
                     timestamp = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
-                elif "updated" in entry:
+                elif "updated" in entry and entry.updated_parsed:
                     timestamp = datetime(*entry.updated_parsed[:6], tzinfo=timezone.utc)
 
                 # Get URL

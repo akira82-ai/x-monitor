@@ -36,6 +36,7 @@ class Monitor:
         self._task: Optional[asyncio.Task] = None
         self._auto_merge_task: Optional[asyncio.Task] = None
         self._last_merge_time: float = time.time()
+        self._merge_lock = asyncio.Lock()
 
     @property
     def is_running(self) -> bool:
@@ -122,12 +123,13 @@ class Monitor:
 
         # 轮询后自动保存
         if self.state_manager and self.config.general.persist_state:
-            if self.config.general.incremental_save:
-                # 增量保存模式
-                self.state_manager.save_incremental(self.state, new_tweets_list)
-            else:
-                # 全量保存模式（向后兼容）
-                self.state_manager.save(self.state)
+            async with self._merge_lock:
+                if self.config.general.incremental_save:
+                    # 增量保存模式
+                    self.state_manager.save_incremental(self.state, new_tweets_list)
+                else:
+                    # 全量保存模式（向后兼容）
+                    self.state_manager.save(self.state)
 
         # 更新标题和徽章（批量通知）
         if total_new > 0:
@@ -162,9 +164,11 @@ class Monitor:
                 try:
                     # 检查是否有需要合并的内容
                     if self.state_manager and self.state_manager.incremental_path.exists():
-                        logger.debug("Starting auto-merge of incremental state")
-                        self.state_manager._merge_incremental(self.state)
-                        logger.debug(f"Auto-merge completed, {len(self.state.tweets)} tweets saved")
+                        async with self._merge_lock:
+                            if self.state_manager.incremental_path.exists():
+                                logger.debug("Starting auto-merge of incremental state")
+                                self.state_manager._merge_incremental(self.state)
+                                logger.debug(f"Auto-merge completed, {len(self.state.tweets)} tweets saved")
                 except Exception as e:
                     logger.error(f"Auto-merge failed: {e}")
             else:
@@ -214,7 +218,7 @@ class Monitor:
         self.state.clear()
         self.state.status_message = "Reset"
 
-    def reload_config(self, path: Optional[str] = None) -> None:
+    async def reload_config(self, path: Optional[str] = None) -> None:
         """Reload configuration from file.
 
         Args:
@@ -224,6 +228,9 @@ class Monitor:
 
         # Load the new config
         new_config = Config.load(path)
+
+        # Close the old fetcher to prevent resource leak
+        await self.fetcher.close()
 
         # Update the config
         self.config = new_config
