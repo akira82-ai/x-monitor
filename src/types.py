@@ -147,6 +147,10 @@ class AppState:
         self._clamp_current_page()
         return new_count
 
+    def recalculate_new_count(self) -> None:
+        """重新计算未读推文数量，确保与实际 is_new 状态一致."""
+        self.new_tweets_count = sum(1 for t in self.tweets if t.is_new)
+
     def apply_keyword_filter(self, keyword: str) -> None:
         """Apply keyword filter - overrides any existing filter."""
         # Save full list if not already saved
@@ -308,6 +312,7 @@ class AppState:
         self.tweets.clear()
         self.known_ids.clear()
         self.selected_index = 0
+        self.current_page = 0
         self.new_tweets_count = 0
 
     def to_dict(self) -> dict:

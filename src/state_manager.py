@@ -88,12 +88,11 @@ class StateManager:
         """
         # 限制推文数量（只裁剪 tweets 列表，不影响 known_ids）
         if len(state.tweets) > self.max_tweets:
-            removed_new_count = sum(1 for t in state.tweets[self.max_tweets:] if t.is_new)
             state.tweets = state.tweets[:self.max_tweets]
             # 不再重建 known_ids，保留已裁剪推文的 ID
             # 这样可以避免这些推文在后续轮询中被重复添加
-            # 调整计数器，确保与实际 is_new 标志一致
-            state.new_tweets_count = max(0, state.new_tweets_count - removed_new_count)
+            # 重新计算计数器，确保与实际 is_new 标志一致
+            state.recalculate_new_count()
 
         # 清理过期的 known_ids：只保留当前 tweets 列表中的 ID
         # 这样被裁剪的推文可以重新出现，避免永久丢失
@@ -103,9 +102,9 @@ class StateManager:
             # 序列化并保存（使用原子写入）
             data = state.to_dict()
             atomic_write(self.state_path, json.dumps(data, indent=2, ensure_ascii=False))
-        except (OSError, IOError):
-            # 静默处理保存失败
-            pass
+        except (OSError, IOError) as e:
+            # 记录保存失败错误
+            logger.warning(f"Failed to save state to {self.state_path}: {e}")
 
     def clear(self) -> None:
         """清除保存的状态."""
@@ -121,10 +120,10 @@ class StateManager:
         return datetime.now(timezone.utc) - timedelta(days=self.KNOWN_IDS_EXPIRY_DAYS)
 
     def _cleanup_known_ids(self, state: AppState) -> None:
-        """清理过期的 known_ids.
+        """清理 known_ids，保持一致性.
 
-        只保留当前 tweets 列表中的推文 ID。
-        这样被裁剪的推文可以重新出现，避免永久丢失。
+        策略：只保留当前推文列表中的 ID。
+        这样被裁剪的推文可以重新出现作为"新推文"，避免永久丢失。
 
         Args:
             state: 当前的 AppState
@@ -134,13 +133,10 @@ class StateManager:
             state.known_ids.clear()
             return
 
-        # 计算过期时间（7天前）
-        expiry_threshold = self._get_expiry_threshold()
-
         # 获取当前推文列表中的所有 ID
         current_tweet_ids = {tweet.id for tweet in state.tweets}
 
-        # 保留当前推文列表中的 ID
+        # 只保留当前推文列表中的 ID
         # 这样被裁剪的推文可以重新出现，避免永久丢失
         state.known_ids = state.known_ids & current_tweet_ids
 
@@ -175,12 +171,12 @@ class StateManager:
 
             # 检查是否需要合并
             if len(all_tweets) >= self.merge_threshold:
-                self._merge_incremental(state)
+                self.merge_incremental(state)
 
-        except (OSError, IOError):
-            pass
+        except (OSError, IOError) as e:
+            logger.warning(f"Failed to save incremental state: {e}")
 
-    def _merge_incremental(self, state: AppState) -> None:
+    def merge_incremental(self, state: AppState) -> None:
         """合并增量文件到主文件.
 
         Args:
@@ -269,8 +265,8 @@ class StateManager:
             try:
                 data = json.loads(self.state_path.read_text())
                 state = AppState.from_dict(data)
-            except (json.JSONDecodeError, KeyError, ValueError):
-                pass
+            except (json.JSONDecodeError, KeyError, ValueError) as e:
+                logger.warning(f"Failed to load main state file: {e}")
 
         # 应用增量文件
         if self.incremental_path.exists():
@@ -287,23 +283,20 @@ class StateManager:
 
                 # 清空已应用的增量文件
                 self.incremental_path.unlink()
-            except (json.JSONDecodeError, KeyError, ValueError):
-                pass
+            except (json.JSONDecodeError, KeyError, ValueError) as e:
+                logger.warning(f"Failed to load incremental file: {e}")
 
         # 限制推文数量（只裁剪 tweets 列表，不影响 known_ids）
         if len(state.tweets) > self.max_tweets:
-            removed_new_count = sum(1 for t in state.tweets[self.max_tweets:] if t.is_new)
             state.tweets = state.tweets[:self.max_tweets]
             # 不再重建 known_ids，保留已裁剪推文的 ID
             # 这样可以避免这些推文在后续轮询中被重复添加
-            # 调整计数器，确保与实际 is_new 标志一致
-            state.new_tweets_count = max(0, state.new_tweets_count - removed_new_count)
 
         # 清理老推文的未读标记（超过 7 天的推文不应该标记为未读）
         self._cleanup_old_new_tweets(state)
 
         # 重新计算以确保 new_tweets_count 与实际 is_new 标志一致
-        state.new_tweets_count = sum(1 for t in state.tweets if t.is_new)
+        state.recalculate_new_count()
 
         return state
 

@@ -66,8 +66,9 @@ class TweetFetcher:
         except httpx.RequestError as e:
             logger.debug(f"Request error fetching {handle}: {e}")
             return []
-        except Exception as e:
-            logger.debug(f"Unexpected error fetching {handle}: {e}")
+        except (ValueError, KeyError) as e:
+            # RSS 解析错误
+            logger.debug(f"RSS parsing error for {handle}: {e}")
             return []
 
     def _parse_rss(self, content: str, handle: str) -> List[Tweet]:

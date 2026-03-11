@@ -63,9 +63,14 @@ class Monitor:
                         total_new += 1
                         new_tweets_list.append(tweet)
 
+            except (OSError, IOError) as e:
+                # 文件系统错误（通常在保存状态时）
+                logger.error(f"File system error for {handle}: {e}")
+                self.state.status_message = f"Error: File system error for {handle}"
             except Exception as e:
-                # Silent error handling
-                self.state.status_message = f"Error: {e}"
+                # 其他未预期的错误
+                logger.error(f"Unexpected error fetching {handle}: {e}")
+                self.state.status_message = f"Error: Failed to fetch {handle}"
             finally:
                 if progress_callback:
                     progress_callback(i + 1, len(self.config.users.handles))
@@ -76,18 +81,14 @@ class Monitor:
             # 保存当前选中推文的 ID
             selected_id = self.state.selected_tweet.id if self.state.selected_tweet else None
 
-            # Count how many new tweets are being removed
-            removed_tweets = self.state.tweets[max_tweets:]
-            removed_new_count = sum(1 for t in removed_tweets if t.is_new)
+            # 裁剪推文列表
             self.state.tweets = self.state.tweets[:max_tweets]
 
-            # 不从 known_ids 中移除被裁剪推文的 ID，防止重复添加
-            # 这些推文仍可能在 RSS feed 中返回，保留 ID 可以避免被重新标记为新推文
-            # removed_ids = {t.id for t in removed_tweets}
-            # self.state.known_ids -= removed_ids
+            # 注意：known_ids 的清理由 StateManager._cleanup_known_ids() 负责
+            # 该方法会移除不在当前推文列表中的 ID，允许旧推文重新出现
 
-            # Adjust the counter
-            self.state.new_tweets_count = max(0, self.state.new_tweets_count - removed_new_count)
+            # 重新计算计数器，确保与实际 is_new 状态一致
+            self.state.recalculate_new_count()
 
             # 恢复选中项
             if selected_id:
@@ -167,7 +168,7 @@ class Monitor:
                         async with self._merge_lock:
                             if self.state_manager.incremental_path.exists():
                                 logger.debug("Starting auto-merge of incremental state")
-                                self.state_manager._merge_incremental(self.state)
+                                self.state_manager.merge_incremental(self.state)
                                 logger.debug(f"Auto-merge completed, {len(self.state.tweets)} tweets saved")
                 except Exception as e:
                     logger.error(f"Auto-merge failed: {e}")
