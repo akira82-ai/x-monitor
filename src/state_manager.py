@@ -15,27 +15,28 @@ logger = logging.getLogger(__name__)
 
 
 def atomic_write(path: Path, content: str) -> None:
-    """原子性写入文件.
+    """Write to file atomically.
 
-    先写入临时文件，然后原子性重命名，确保写入过程不会损坏原文件。
+    Write to a temporary file first, then atomically rename to ensure the
+    write process doesn't corrupt the original file.
 
     Args:
-        path: 目标文件路径
-        content: 要写入的内容
+        path: Target file path
+        content: Content to write
     """
-    # 确保目录存在
+    # Ensure directory exists
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    # 创建临时文件
+    # Create temporary file
     fd, temp_path = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
     try:
-        # 写入内容
+        # Write content
         with os.fdopen(fd, 'w') as f:
             f.write(content)
-        # 原子性重命名（覆盖原文件）
+        # Atomic rename (overwrite original file)
         os.replace(temp_path, str(path))
     except Exception:
-        # 失败时清理临时文件
+        # Clean up temp file on failure
         try:
             os.unlink(temp_path)
         except OSError:
@@ -44,9 +45,9 @@ def atomic_write(path: Path, content: str) -> None:
 
 
 class StateManager:
-    """管理应用状态的持久化."""
+    """Manage application state persistence."""
 
-    # 推文 ID 过期时间（天），超过此时间的推文 ID 会从 known_ids 中移除
+    # Tweet ID expiry time (days), IDs older than this are removed from known_ids
     KNOWN_IDS_EXPIRY_DAYS = 7
 
     def __init__(self, max_tweets: int = 1000, merge_threshold: int = 50):
@@ -63,47 +64,47 @@ class StateManager:
 
     @staticmethod
     def _get_state_path() -> Path:
-        """获取状态文件路径."""
-        # 优先使用 XDG 配置目录
+        """Get state file path."""
+        # Prefer XDG config directory
         config_dir = Path.home() / ".config" / "x-monitor"
         if config_dir.exists():
             return config_dir / "state.json"
 
-        # 回退到当前目录
+        # Fallback to current directory
         return Path("state.json")
 
     @staticmethod
     def _get_incremental_path() -> Path:
-        """获取增量文件路径."""
+        """Get incremental file path."""
         config_dir = Path.home() / ".config" / "x-monitor"
         if config_dir.exists():
             return config_dir / "state.incremental.json"
         return Path("state.incremental.json")
 
     def save(self, state: AppState) -> None:
-        """保存状态到文件.
+        """Save state to file.
 
         Args:
-            state: 要保存的 AppState
+            state: AppState to save
         """
-        # 限制推文数量（只裁剪 tweets 列表，不影响 known_ids）
+        # Limit tweet count (only trim tweets list, don't affect known_ids)
         if len(state.tweets) > self.max_tweets:
             state.tweets = state.tweets[:self.max_tweets]
-            # 不再重建 known_ids，保留已裁剪推文的 ID
-            # 这样可以避免这些推文在后续轮询中被重复添加
-            # 重新计算计数器，确保与实际 is_new 标志一致
+            # Don't rebuild known_ids, keep trimmed tweet IDs
+            # This allows these tweets to reappear in future polls
+            # Recalculate counter to ensure consistency with actual is_new flags
             state.recalculate_new_count()
 
-        # 清理过期的 known_ids：只保留当前 tweets 列表中的 ID
-        # 这样被裁剪的推文可以重新出现，避免永久丢失
+        # Clean up expired known_ids: only keep IDs in current tweets list
+        # This allows trimmed tweets to reappear, avoiding permanent loss
         self._cleanup_known_ids(state)
 
         try:
-            # 序列化并保存（使用原子写入）
+            # Serialize and save (using atomic write)
             data = state.to_dict()
             atomic_write(self.state_path, json.dumps(data, indent=2, ensure_ascii=False))
         except (OSError, IOError) as e:
-            # 记录保存失败错误
+            # Log save failure
             logger.warning(f"Failed to save state to {self.state_path}: {e}")
 
     def clear(self) -> None:
@@ -120,24 +121,24 @@ class StateManager:
         return datetime.now(timezone.utc) - timedelta(days=self.KNOWN_IDS_EXPIRY_DAYS)
 
     def _cleanup_known_ids(self, state: AppState) -> None:
-        """清理 known_ids，保持一致性.
+        """Clean up known_ids to maintain consistency.
 
-        策略：只保留当前推文列表中的 ID。
-        这样被裁剪的推文可以重新出现作为"新推文"，避免永久丢失。
+        Strategy: Only keep IDs in the current tweet list.
+        This allows trimmed tweets to reappear as "new tweets", avoiding permanent loss.
 
         Args:
-            state: 当前的 AppState
+            state: Current AppState
         """
         if not state.tweets:
-            # 如果没有推文，清空所有 known_ids
+            # If no tweets, clear all known_ids
             state.known_ids.clear()
             return
 
-        # 获取当前推文列表中的所有 ID
+        # Get all IDs in current tweet list
         current_tweet_ids = {tweet.id for tweet in state.tweets}
 
-        # 只保留当前推文列表中的 ID
-        # 这样被裁剪的推文可以重新出现，避免永久丢失
+        # Only keep IDs in current tweet list
+        # This allows trimmed tweets to reappear, avoiding permanent loss
         state.known_ids = state.known_ids & current_tweet_ids
 
     def save_incremental(self, state: AppState, new_tweets: List[Tweet]) -> None:
@@ -177,46 +178,46 @@ class StateManager:
             logger.warning(f"Failed to save incremental state: {e}")
 
     def merge_incremental(self, state: AppState) -> None:
-        """合并增量文件到主文件.
+        """Merge incremental file into main file.
 
         Args:
-            state: 当前的 AppState
+            state: Current AppState
         """
         try:
-            # 加载主文件
+            # Load main file
             main_data = {}
             if self.state_path.exists():
                 main_data = json.loads(self.state_path.read_text())
 
-            # 加载增量文件
+            # Load incremental file
             incremental_data = {}
             if self.incremental_path.exists():
                 incremental_data = json.loads(self.incremental_path.read_text())
 
-            # 合并推文（去重）
+            # Merge tweets (deduplicate)
             main_tweets = {t["id"]: t for t in main_data.get("tweets", [])}
             for t in incremental_data.get("tweets", []):
                 main_tweets[t["id"]] = t
 
-            # 用当前内存状态的 is_new 值覆盖，确保阅读状态正确持久化
+            # Override with current memory state's is_new values to ensure read state persists correctly
             if state:
                 for tweet in state.tweets:
                     if tweet.id in main_tweets:
                         main_tweets[tweet.id]["is_new"] = tweet.is_new
 
-                # 清理过期的 known_ids（在合并前）
+                # Clean up expired known_ids (before merge)
                 self._cleanup_known_ids(state)
 
-            # 排序并限制数量
+            # Sort and limit count
             tweets_list = sorted(
                 main_tweets.values(),
                 key=lambda x: x["timestamp"],
                 reverse=True
             )[:self.max_tweets]
 
-            # 更新主文件
+            # Update main file
             main_data["tweets"] = tweets_list
-            # 保存其他状态字段
+            # Save other state fields
             if state:
                 main_data["selected_index"] = state.selected_index
                 main_data["current_page"] = state.current_page
@@ -230,14 +231,14 @@ class StateManager:
                 main_data["details_scroll_offset"] = state.details_scroll_offset
                 main_data["known_ids"] = list(state.known_ids)
 
-            # 更新主文件（使用原子写入）
+            # Update main file (using atomic write)
             atomic_write(
                 self.state_path,
                 json.dumps(main_data, indent=2, ensure_ascii=False)
             )
 
-            # 主文件写入成功后，才删除增量文件
-            # 确保即使失败也不会丢失增量数据
+            # Only delete incremental file after main file is written successfully
+            # This ensures no incremental data is lost even on failure
             if self.incremental_path.exists():
                 try:
                     self.incremental_path.unlink()
@@ -247,20 +248,20 @@ class StateManager:
 
         except (OSError, IOError, json.JSONDecodeError) as e:
             logger.error(f"Failed to merge incremental file: {e}")
-            # 如果合并失败，保留增量文件，下次启动时重试
+            # If merge fails, keep incremental file for retry on next startup
 
     def load(self) -> Optional[AppState]:
-        """加载状态（主文件 + 增量文件）.
+        """Load state (main file + incremental file).
 
         Returns:
-            加载的 AppState，如果文件不存在或加载失败则返回 None
+            Loaded AppState, or None if files don't exist or loading failed
         """
         if not self.state_path.exists() and not self.incremental_path.exists():
             return None
 
         state = AppState()
 
-        # 加载主文件
+        # Load main file
         if self.state_path.exists():
             try:
                 data = json.loads(self.state_path.read_text())
@@ -268,53 +269,53 @@ class StateManager:
             except (json.JSONDecodeError, KeyError, ValueError) as e:
                 logger.warning(f"Failed to load main state file: {e}")
 
-        # 应用增量文件
+        # Apply incremental file
         if self.incremental_path.exists():
             try:
                 data = json.loads(self.incremental_path.read_text())
                 for t_dict in data.get("tweets", []):
                     tweet = Tweet.from_dict(t_dict)
                     if tweet.id not in state.known_ids:
-                        # 直接添加，不使用 add_tweet（避免覆盖 is_new）
+                        # Add directly, don't use add_tweet (avoid overwriting is_new)
                         state.known_ids.add(tweet.id)
                         state.tweets.insert(0, tweet)
                         if tweet.is_new:
                             state.new_tweets_count += 1
 
-                # 清空已应用的增量文件
+                # Clear applied incremental file
                 self.incremental_path.unlink()
             except (json.JSONDecodeError, KeyError, ValueError) as e:
                 logger.warning(f"Failed to load incremental file: {e}")
 
-        # 限制推文数量（只裁剪 tweets 列表，不影响 known_ids）
+        # Limit tweet count (only trim tweets list, don't affect known_ids)
         if len(state.tweets) > self.max_tweets:
             state.tweets = state.tweets[:self.max_tweets]
-            # 不再重建 known_ids，保留已裁剪推文的 ID
-            # 这样可以避免这些推文在后续轮询中被重复添加
+            # Don't rebuild known_ids, keep trimmed tweet IDs
+            # This allows these tweets to reappear in future polls
 
-        # 清理老推文的未读标记（超过 7 天的推文不应该标记为未读）
+        # Clean up old tweets' new flags (tweets older than 7 days shouldn't be marked as new)
         self._cleanup_old_new_tweets(state)
 
-        # 重新计算以确保 new_tweets_count 与实际 is_new 标志一致
+        # Recalculate to ensure new_tweets_count matches actual is_new flags
         state.recalculate_new_count()
 
         return state
 
     def _cleanup_old_new_tweets(self, state: AppState) -> None:
-        """清理老推文的未读标记.
+        """Clean up new flags from old tweets.
 
-        将超过 7 天的推文的 is_new 标记设置为 False。
+        Set is_new to False for tweets older than 7 days.
 
         Args:
-            state: 当前的 AppState
+            state: Current AppState
         """
         if not state.tweets:
             return
 
-        # 计算过期时间（7天前）
+        # Calculate expiry time (7 days ago)
         expiry_threshold = self._get_expiry_threshold()
 
-        # 清理老推文的未读标记
+        # Clean up new flags from old tweets
         for tweet in state.tweets:
             if tweet.is_new and tweet.timestamp < expiry_threshold:
                 tweet.is_new = False

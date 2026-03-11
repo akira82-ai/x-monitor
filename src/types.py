@@ -97,8 +97,8 @@ class AppState:
     tweets: List[Tweet] = field(default_factory=list)
     known_ids: set = field(default_factory=set)
     selected_index: int = 0
-    current_page: int = 0  # 当前页码（从 0 开始）
-    page_size: int = 10  # 每页行数（会根据屏幕高度动态调整）
+    current_page: int = 0  # Current page number (starts from 0)
+    page_size: int = 10  # Rows per page (dynamically adjusted based on screen height)
     paused: bool = False
     last_poll: Optional[datetime] = None
     status_message: str = "Initializing..."
@@ -119,7 +119,7 @@ class AppState:
     error_timestamp: Optional[datetime] = None  # When the error occurred
 
     # Search overlay state
-    search_visible: bool = False  # 搜索浮层是否可见
+    search_visible: bool = False  # Whether search overlay is visible
 
     def add_tweet(self, tweet: Tweet) -> bool:
         """Add a tweet and return True if it's new."""
@@ -127,7 +127,7 @@ class AppState:
             return False
 
         self.known_ids.add(tweet.id)
-        tweet.is_new = True  # 确保新推文标记为 True
+        tweet.is_new = True  # Ensure new tweets are marked as True
 
         # If filtering is active, also add to unfiltered_tweets
         if self.unfiltered_tweets is not None:
@@ -143,7 +143,7 @@ class AppState:
         for tweet in tweets:
             if self.add_tweet(tweet):
                 new_count += 1
-        # 确保页码在有效范围内（因为推文数量可能增加了）
+        # Ensure page number is within valid range (since tweet count may have increased)
         self._clamp_current_page()
         return new_count
 
@@ -207,7 +207,7 @@ class AppState:
         """Select the next tweet."""
         if self.selected_index < len(self.tweets) - 1:
             self.selected_index += 1
-            # 自动翻页
+            # Auto page turn
             if self.page_size > 0 and self.selected_index >= (self.current_page + 1) * self.page_size:
                 max_page = max(0, (len(self.tweets) - 1) // self.page_size)
                 self.current_page = min(self.current_page + 1, max_page)

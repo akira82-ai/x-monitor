@@ -14,11 +14,11 @@ class GeneralConfig:
     nitter_instance: str = "https://nitter.net"
     max_tweets: int = 50
     filter_replies: bool = True  # Filter out reply tweets
-    persist_state: bool = True   # 是否持久化状态
-    max_saved_tweets: int = 1000  # 最大保存推文数
-    incremental_save: bool = True  # 是否使用增量保存
-    merge_threshold: int = 50  # 合并增量文件的阈值
-    auto_merge_interval_sec: int = 60  # 自动合并增量文件的间隔（秒），0 表示禁用
+    persist_state: bool = True   # Persist state to disk
+    max_saved_tweets: int = 1000  # Maximum number of tweets to save
+    incremental_save: bool = True  # Use incremental saving
+    merge_threshold: int = 50  # Threshold for merging incremental files
+    auto_merge_interval_sec: int = 60  # Auto-merge interval (seconds), 0 to disable
 
     def validate(self) -> None:
         """Validate general configuration."""
@@ -61,10 +61,10 @@ class NotificationConfig:
     sound: bool = True
     flash: bool = True
     desktop: bool = False
-    title_badge: bool = True      # 窗口标题未读数和 Dock 徽章
-    burst_threshold: int = 5      # 爆发检测阈值（推文/分钟）
-    burst_window_sec: int = 60    # 爆发检测时间窗口（秒）
-    burst_sound: bool = True      # 爆发时连续响铃
+    title_badge: bool = True      # Window title unread count and Dock badge
+    burst_threshold: int = 5      # Burst detection threshold (tweets/minute)
+    burst_window_sec: int = 60    # Burst detection time window (seconds)
+    burst_sound: bool = True      # Continuous ringing on burst
 
 
 @dataclass

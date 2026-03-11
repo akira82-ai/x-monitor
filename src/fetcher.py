@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class TweetFetcher:
     """Fetch tweets from Nitter RSS feeds."""
 
-    # RSS 响应大小限制（10MB）
+    # RSS response size limit (10MB)
     MAX_RSS_SIZE = 10 * 1024 * 1024
 
     def __init__(self, nitter_instance: str, timeout: float = 10.0):
@@ -24,12 +24,12 @@ class TweetFetcher:
         self.nitter_instance = nitter_instance.rstrip("/")
         self.timeout = timeout
 
-        # 获取 HTTP/HTTPS 代理（不支持 SOCKS）
+        # Get HTTP/HTTPS proxy (SOCKS not supported)
         import os
         proxy = os.environ.get('https_proxy') or os.environ.get('http_proxy')
 
         # Create client with HTTP proxy support only
-        # trust_env=False 防止 httpx 自动读取环境变量（避免 SOCKS 代理问题）
+        # trust_env=False prevents httpx from reading environment variables (avoid SOCKS proxy issues)
         self.client = httpx.AsyncClient(
             timeout=timeout,
             headers={
@@ -37,8 +37,8 @@ class TweetFetcher:
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             },
             follow_redirects=True,
-            proxy=proxy,  # 显式传递 HTTP/HTTPS 代理
-            trust_env=False,  # 禁用环境变量自动检测
+            proxy=proxy,  # Explicitly pass HTTP/HTTPS proxy
+            trust_env=False,  # Disable environment variable auto-detection
         )
 
     async def fetch_tweets(self, handle: str) -> List[Tweet]:
@@ -49,7 +49,7 @@ class TweetFetcher:
             response = await self.client.get(rss_url)
             response.raise_for_status()
 
-            # 检查响应大小
+            # Check response size
             content_size = len(response.content)
             if content_size > self.MAX_RSS_SIZE:
                 logger.warning(
@@ -67,7 +67,7 @@ class TweetFetcher:
             logger.debug(f"Request error fetching {handle}: {e}")
             return []
         except (ValueError, KeyError) as e:
-            # RSS 解析错误
+            # RSS parsing error
             logger.debug(f"RSS parsing error for {handle}: {e}")
             return []
 
@@ -145,12 +145,12 @@ class TweetFetcher:
         return " ".join("".join(result).split())
 
     def _is_reply(self, entry) -> bool:
-        """检测 RSS entry 是否为回复推文."""
-        # 方法1：检查 in-reply-to 字段（最可靠）
+        """Check if RSS entry is a reply tweet."""
+        # Method 1: Check in-reply-to field (most reliable)
         if entry.get('in-reply-to'):
             return True
 
-        # 方法2：检查标签/分类
+        # Method 2: Check tags/categories
         tags = entry.get('tags', [])
         if tags:
             for tag in tags:
@@ -158,13 +158,13 @@ class TweetFetcher:
                     if 'reply' in tag['term'].lower():
                         return True
 
-        # 方法3：内容模式检测（辅助，避免误判）
+        # Method 3: Content pattern detection (auxiliary, avoid false positives)
         content = entry.get('description', '')
         stripped = self._strip_html(content)
 
-        # 排除转推后，检查是否以 @ 开头
+        # After excluding retweets, check if starts with @
         if not (stripped.startswith('RT @') or 'RT @' in stripped):
-            # 如果以 @ 开头且有多个 @mentions，很可能是回复
+            # If starts with @ and has multiple @mentions, likely a reply
             if stripped.startswith('@'):
                 mention_count = stripped.count('@')
                 if mention_count >= 2:

@@ -41,7 +41,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 
 # 3. Install dependencies
-pip3 install textual feedparser httpx toml
+pip3 install prompt_toolkit feedparser httpx toml wcwidth pyperclip
 
 # 4. Create config file
 python3 main.py --create-config
@@ -125,12 +125,12 @@ python3 demo.py
 python3 main.py
 ```
 
-### "No module named 'textual'"
+### "No module named 'prompt_toolkit'"
 
 Install dependencies:
 ```bash
 source .venv/bin/activate
-pip3 install textual feedparser httpx toml
+pip3 install prompt_toolkit feedparser httpx toml wcwidth pyperclip
 ```
 
 ### "No such file or directory: .venv"
@@ -139,7 +139,7 @@ Create virtual environment:
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip3 install textual feedparser httpx toml
+pip3 install prompt_toolkit feedparser httpx toml wcwidth pyperclip
 ```
 
 ### Network errors
