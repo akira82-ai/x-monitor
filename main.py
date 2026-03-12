@@ -54,6 +54,10 @@ async def main_async() -> None:
         if saved_state:
             state = saved_state
             print(f"Restored {len(state.tweets)} tweets from previous session")
+            # Reset page_size to allow UI to recalculate it based on actual window size
+            # This prevents cursor_position from going negative due to page size mismatch
+            state.page_size = 10
+            state._clamp_current_page()
         else:
             state = AppState()
     else:

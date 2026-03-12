@@ -206,9 +206,9 @@ class TweetTableControl(UIControl):
             lines.append(FormattedText([('', '')]))
 
         return UIContent(
-            get_line=lambda i: lines[i] if i < len(lines) else FormattedText([('', '')]),
+            get_line=lambda i: lines[i] if 0 <= i < len(lines) else FormattedText([('', '')]),
             line_count=len(lines),
-            cursor_position=Point(0, self.state.selected_index - start_idx)
+            cursor_position=Point(0, max(0, self.state.selected_index - start_idx))
         )
 
     def is_focusable(self) -> bool:
@@ -319,7 +319,7 @@ class TweetDetailsControl(UIControl):
             lines.append(FormattedText([('', '')]))
 
         return UIContent(
-            get_line=lambda i: lines[i] if i < len(lines) else FormattedText([('', '')]),
+            get_line=lambda i: lines[i] if 0 <= i < len(lines) else FormattedText([('', '')]),
             line_count=len(lines),
         )
 

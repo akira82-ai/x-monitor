@@ -145,6 +145,10 @@ class Monitor:
         """Run the monitoring loop."""
         self._running = True
 
+        # Mark all loaded tweets as read before initial poll
+        # Only tweets fetched during this session should be marked as new
+        self.state.mark_all_as_read()
+
         # Initial poll
         await self.poll_once()
         on_update()
@@ -249,7 +253,7 @@ class Monitor:
 
         if self.config.general.incremental_save:
             # 退出时强制合并增量文件
-            self.state_manager._merge_incremental(self.state)
+            self.state_manager.merge_incremental(self.state)
         else:
             # 全量保存
             self.state_manager.save(self.state)
