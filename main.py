@@ -12,11 +12,6 @@ from src.types import AppState
 from src.ui import run_ui
 
 
-async def refresh_monitor(monitor: Monitor) -> int:
-    """Callback for UI refresh."""
-    return await monitor.refresh()
-
-
 async def main_async() -> None:
     """Main async entry point."""
     parser = argparse.ArgumentParser(

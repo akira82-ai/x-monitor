@@ -95,10 +95,6 @@ class StateManager:
             # Recalculate counter to ensure consistency with actual is_new flags
             state.recalculate_new_count()
 
-        # Clean up expired known_ids: only keep IDs in current tweets list
-        # This allows trimmed tweets to reappear, avoiding permanent loss
-        self._cleanup_known_ids(state)
-
         try:
             # Serialize and save (using atomic write)
             data = state.to_dict()
@@ -119,27 +115,6 @@ class StateManager:
             当前时间减去 KNOWN_IDS_EXPIRY 天后的时间戳
         """
         return datetime.now(timezone.utc) - timedelta(days=self.KNOWN_IDS_EXPIRY_DAYS)
-
-    def _cleanup_known_ids(self, state: AppState) -> None:
-        """Clean up known_ids to maintain consistency.
-
-        Strategy: Only keep IDs in the current tweet list.
-        This allows trimmed tweets to reappear as "new tweets", avoiding permanent loss.
-
-        Args:
-            state: Current AppState
-        """
-        if not state.tweets:
-            # If no tweets, clear all known_ids
-            state.known_ids.clear()
-            return
-
-        # Get all IDs in current tweet list
-        current_tweet_ids = {tweet.id for tweet in state.tweets}
-
-        # Only keep IDs in current tweet list
-        # This allows trimmed tweets to reappear, avoiding permanent loss
-        state.known_ids = state.known_ids & current_tweet_ids
 
     def save_incremental(self, state: AppState, new_tweets: List[Tweet]) -> None:
         """增量保存：只保存新增的推文.
@@ -204,9 +179,6 @@ class StateManager:
                 for tweet in state.tweets:
                     if tweet.id in main_tweets:
                         main_tweets[tweet.id]["is_new"] = tweet.is_new
-
-                # Clean up expired known_ids (before merge)
-                self._cleanup_known_ids(state)
 
             # Sort and limit count
             tweets_list = sorted(

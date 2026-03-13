@@ -115,23 +115,6 @@ class Notifier:
         )
         self._title_badge = TitleBadgeManager()
 
-    def notify(self, tweet: Tweet) -> None:
-        """Send a notification for a new tweet."""
-        if not self.config.notification.enable:
-            return
-
-        # Terminal bell
-        if self.config.notification.sound:
-            self._bell()
-
-        # Terminal flash
-        if self.config.notification.flash:
-            self._flash()
-
-        # Desktop notification (if enabled and available)
-        if self.config.notification.desktop:
-            self._desktop_notify(tweet)
-
     def notify_batch(self, new_count: int, total_unread: int) -> None:
         """批量通知接口：处理标题、徽章和爆发检测。
 

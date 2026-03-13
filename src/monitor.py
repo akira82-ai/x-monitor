@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-import time
 from datetime import datetime, timezone
 from typing import Callable, Optional
 
@@ -35,7 +34,6 @@ class Monitor:
         self._running = False
         self._task: Optional[asyncio.Task] = None
         self._auto_merge_task: Optional[asyncio.Task] = None
-        self._last_merge_time: float = time.time()
         self._merge_lock = asyncio.Lock()
 
     @property
