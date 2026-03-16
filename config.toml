@@ -10,7 +10,7 @@ poll_interval_sec = 300
 # Nitter 是 Twitter 的开源前端，不依赖官方 API
 # 常用镜像：https://nitter.net、https://nitter.poast.org、https://nitter.privacydev.net
 # 更多实例见：https://github.com/zedeus/nitter/wiki/Instances
-nitter_instance = "https://nitter.tiekoetter.com"
+nitter_instance = "https://nitter.net"
 
 # 内存中保留的最大推文数
 # 超过此数量后，旧推文会被移除（仅影响内存，不影响磁盘保存）
