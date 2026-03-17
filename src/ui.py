@@ -493,7 +493,7 @@ def create_layout(state: AppState, config: Config) -> Layout:
     # Footer (keybindings)
     footer = Window(
         content=FormattedTextControl(
-            lambda: "Q:退出  ↑↓:选择  ←→:翻页  /:搜索  u:用户过滤  o:打开URL  c:复制  Alt+↑↓:滚动详情"
+            lambda: "Q:退出  ↑↓:选择  ←→:翻页  /:搜索  u:用户过滤  o:打开URL  c:复制  Alt+↑↓:滚动详情  Alt+R:全部已读"
         ),
         height=D.exact(1),
         style='class:footer',
@@ -586,7 +586,13 @@ def create_key_bindings(state: AppState, monitor=None) -> KeyBindings:
         """Move down."""
         state.select_next()
         state.details_scroll_offset = 0  # Reset scroll offset
-        state.mark_selected_as_read()
+        # 通过 StateManager 标记已读（写入文件）
+        if monitor and monitor.state_manager and state.selected_tweet:
+            if monitor.state_manager.mark_tweet_as_read(state.selected_tweet.id):
+                # 文件已更新，同步内存中的 is_new 状态
+                if state.selected_index < len(state.tweets):
+                    state.tweets[state.selected_index].is_new = False
+                    state.recalculate_new_count()
         if state.new_tweets_count == 0 and monitor:
             monitor.notifier.clear_badge()
         event.app.invalidate()
@@ -597,7 +603,13 @@ def create_key_bindings(state: AppState, monitor=None) -> KeyBindings:
         """Move up."""
         state.select_previous()
         state.details_scroll_offset = 0  # Reset scroll offset
-        state.mark_selected_as_read()
+        # 通过 StateManager 标记已读（写入文件）
+        if monitor and monitor.state_manager and state.selected_tweet:
+            if monitor.state_manager.mark_tweet_as_read(state.selected_tweet.id):
+                # 文件已更新，同步内存中的 is_new 状态
+                if state.selected_index < len(state.tweets):
+                    state.tweets[state.selected_index].is_new = False
+                    state.recalculate_new_count()
         if state.new_tweets_count == 0 and monitor:
             monitor.notifier.clear_badge()
         event.app.invalidate()
@@ -608,7 +620,13 @@ def create_key_bindings(state: AppState, monitor=None) -> KeyBindings:
         """Next page."""
         state.next_page()
         state.details_scroll_offset = 0  # Reset scroll offset
-        state.mark_selected_as_read()
+        # 通过 StateManager 标记已读（写入文件）
+        if monitor and monitor.state_manager and state.selected_tweet:
+            if monitor.state_manager.mark_tweet_as_read(state.selected_tweet.id):
+                # 文件已更新，同步内存中的 is_new 状态
+                if state.selected_index < len(state.tweets):
+                    state.tweets[state.selected_index].is_new = False
+                    state.recalculate_new_count()
         if state.new_tweets_count == 0 and monitor:
             monitor.notifier.clear_badge()
         event.app.invalidate()
@@ -619,7 +637,13 @@ def create_key_bindings(state: AppState, monitor=None) -> KeyBindings:
         """Previous page."""
         state.prev_page()
         state.details_scroll_offset = 0  # Reset scroll offset
-        state.mark_selected_as_read()
+        # 通过 StateManager 标记已读（写入文件）
+        if monitor and monitor.state_manager and state.selected_tweet:
+            if monitor.state_manager.mark_tweet_as_read(state.selected_tweet.id):
+                # 文件已更新，同步内存中的 is_new 状态
+                if state.selected_index < len(state.tweets):
+                    state.tweets[state.selected_index].is_new = False
+                    state.recalculate_new_count()
         if state.new_tweets_count == 0 and monitor:
             monitor.notifier.clear_badge()
         event.app.invalidate()
@@ -728,6 +752,21 @@ def create_key_bindings(state: AppState, monitor=None) -> KeyBindings:
     def _(event):
         """Scroll details panel up."""
         state.details_scroll_offset = max(0, state.details_scroll_offset - 1)
+        event.app.invalidate()
+
+    @kb.add('escape', 'r', filter=_not_searching_filter)
+    def _(event):
+        """Mark all tweets as read."""
+        from datetime import datetime, timezone
+        if monitor and monitor.state_manager:
+            monitor.state_manager.mark_all_as_read_in_file()
+            # 同步内存中的状态
+            for tweet in state.tweets:
+                tweet.is_new = False
+            state.recalculate_new_count()
+            monitor.notifier.clear_badge()
+            state.status_message = "已标记所有推文为已读"
+            state.status_message_timestamp = datetime.now(timezone.utc)
         event.app.invalidate()
 
     return kb

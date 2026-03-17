@@ -291,3 +291,41 @@ class StateManager:
         for tweet in state.tweets:
             if tweet.is_new and tweet.timestamp < expiry_threshold:
                 tweet.is_new = False
+
+    def mark_tweet_as_read(self, tweet_id: str) -> bool:
+        """标记推文为已读（直接修改文件）.
+
+        Args:
+            tweet_id: 推文 ID
+
+        Returns:
+            是否成功标记（如果推文不存在或不是未读状态则返回 False）
+        """
+        state = self.load()
+        if state is None:
+            return False
+
+        for tweet in state.tweets:
+            if tweet.id == tweet_id and tweet.is_new:
+                tweet.is_new = False
+                state.recalculate_new_count()
+                self.save(state)
+                return True
+        return False
+
+    def mark_all_as_read_in_file(self) -> None:
+        """标记所有推文为已读（直接修改文件）."""
+        state = self.load()
+        if state is None:
+            return
+
+        state.mark_all_as_read()
+        self.save(state)
+
+    def get_state(self) -> Optional[AppState]:
+        """获取当前状态（从文件重新加载）.
+
+        Returns:
+            当前 AppState，如果文件不存在则返回 None
+        """
+        return self.load()

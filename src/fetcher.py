@@ -172,6 +172,12 @@ class TweetFetcher:
 
         return False
 
+    async def update_instance(self, new_instance: str) -> None:
+        """更新 Nitter 实例 URL（运行时切换）."""
+        old_instance = self.nitter_instance
+        self.nitter_instance = new_instance.rstrip("/")
+        logger.info(f"Fetcher instance updated: {old_instance} -> {self.nitter_instance}")
+
     async def close(self) -> None:
         """Close the HTTP client."""
         await self.client.aclose()

@@ -44,7 +44,7 @@ merge_threshold = 50
 # 要监控的 Twitter 用户列表
 # 输入用户名，不需要 @ 符号
 # 例如：["elonmusk", "samaltman"] 监控这两位用户
-handles = ["karpathy", "dotey", "op7418", "chengfeng240928", "bcherny", "lijigang", "123olp", "AI_Whisper_X", "vista8"]
+handles = ["dotey", "op7418", "chengfeng240928", "bcherny", "lijigang", "123olp", "AI_Whisper_X", "vista8"]
 
 [notification]
 # 是否启用新推文通知

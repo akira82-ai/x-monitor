@@ -121,6 +121,22 @@ class AppState:
     # Search overlay state
     search_visible: bool = False  # Whether search overlay is visible
 
+    # Current Nitter instance (not persisted)
+    current_instance: Optional[str] = None
+
+    # Expiry time for new tweets (days)
+    NEW_TWEET_EXPIRY_DAYS = 7
+
+    def _cleanup_old_new_tweets(self) -> None:
+        """清理过期的未读标记（7天以上的推文不再标记为未读）."""
+        from datetime import datetime, timezone, timedelta
+
+        expiry_threshold = datetime.now(timezone.utc) - timedelta(days=self.NEW_TWEET_EXPIRY_DAYS)
+
+        for tweet in self.tweets:
+            if tweet.is_new and tweet.timestamp < expiry_threshold:
+                tweet.is_new = False
+
     def add_tweet(self, tweet: Tweet) -> bool:
         """Add a tweet and return True if it's new."""
         if tweet.id in self.known_ids:
@@ -358,4 +374,11 @@ class AppState:
 
         # 确保 current_page 和 selected_index 在有效范围内
         state._clamp_current_page()
+
+        # 清理过期的未读标记
+        state._cleanup_old_new_tweets()
+
+        # 重新计算未读计数
+        state.recalculate_new_count()
+
         return state

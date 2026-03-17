@@ -5,10 +5,13 @@ import logging
 from datetime import datetime, timezone
 from typing import Callable, Optional
 
+import httpx
+
 from .config import Config
 from .fetcher import TweetFetcher
 from .types import AppState
 from .notifier import Notifier
+from .instance_manager import NitterInstanceManager
 
 
 logger = logging.getLogger(__name__)
@@ -36,6 +39,13 @@ class Monitor:
         self._auto_merge_task: Optional[asyncio.Task] = None
         self._merge_lock = asyncio.Lock()
 
+        self.instance_manager = NitterInstanceManager(
+            primary_instance=config.general.nitter_instance,
+            failure_threshold=3,
+            http_client=self.fetcher.client
+        )
+        self.state.current_instance = config.general.nitter_instance
+
     @property
     def is_running(self) -> bool:
         """Check if the monitor is running."""
@@ -44,34 +54,56 @@ class Monitor:
     async def poll_once(self, progress_callback=None) -> int:
         """Perform a single poll for new tweets. Returns new tweet count."""
         total_new = 0
-        new_tweets_list = []  # 跟踪新增推文
+        new_tweets_list = []
 
         for i, handle in enumerate(self.config.users.handles):
-            try:
-                tweets = await self.fetcher.fetch_tweets(handle)
+            retry_count = 0
+            max_retries = 1
 
-                # 根据配置过滤推文
-                if self.config.general.filter_replies:
-                    # 过滤掉回复推文
-                    tweets = [t for t in tweets if not t.is_reply]
+            while retry_count <= max_retries:
+                try:
+                    tweets = await self.fetcher.fetch_tweets(handle)
 
-                # Add tweets and notify for new ones
-                for tweet in tweets:
-                    if self.state.add_tweet(tweet):
-                        total_new += 1
-                        new_tweets_list.append(tweet)
+                    await self.instance_manager.record_success()
 
-            except (OSError, IOError) as e:
-                # 文件系统错误（通常在保存状态时）
-                logger.error(f"File system error for {handle}: {e}")
-                self.state.status_message = f"Error: File system error for {handle}"
-            except Exception as e:
-                # 其他未预期的错误
-                logger.error(f"Unexpected error fetching {handle}: {e}")
-                self.state.status_message = f"Error: Failed to fetch {handle}"
-            finally:
-                if progress_callback:
-                    progress_callback(i + 1, len(self.config.users.handles))
+                    if self.config.general.filter_replies:
+                        tweets = [t for t in tweets if not t.is_reply]
+
+                    for tweet in tweets:
+                        if self.state.add_tweet(tweet):
+                            total_new += 1
+                            new_tweets_list.append(tweet)
+
+                    break
+
+                except (httpx.TimeoutError, httpx.HTTPStatusError, httpx.RequestError) as e:
+                    new_instance = await self.instance_manager.record_failure(e)
+
+                    if new_instance and retry_count < max_retries:
+                        await self.fetcher.update_instance(new_instance)
+                        self.state.current_instance = new_instance
+                        self.instance_manager.update_terminal_title(new_instance)
+
+                        retry_count += 1
+                        logger.info(f"Retrying {handle} with new instance: {new_instance}")
+                        continue
+                    else:
+                        logger.error(f"Failed to fetch {handle} after {retry_count} retries: {e}")
+                        self.state.status_message = f"Error: Failed to fetch {handle}"
+                        break
+
+                except (OSError, IOError) as e:
+                    logger.error(f"File system error for {handle}: {e}")
+                    self.state.status_message = f"Error: File system error for {handle}"
+                    break
+
+                except Exception as e:
+                    logger.error(f"Unexpected error fetching {handle}: {e}")
+                    self.state.status_message = f"Error: Failed to fetch {handle}"
+                    break
+                finally:
+                    if progress_callback:
+                        progress_callback(i + 1, len(self.config.users.handles))
 
         # Trim to max tweets
         max_tweets = self.config.general.max_tweets
@@ -142,10 +174,6 @@ class Monitor:
     async def _run_loop(self, on_update: Callable[[], None]) -> None:
         """Run the monitoring loop."""
         self._running = True
-
-        # Mark all loaded tweets as read before initial poll
-        # Only tweets fetched during this session should be marked as new
-        self.state.mark_all_as_read()
 
         # Initial poll
         await self.poll_once()
@@ -229,20 +257,22 @@ class Monitor:
         """
         from .config import Config
 
-        # Load the new config
         new_config = Config.load(path)
 
-        # Close the old fetcher to prevent resource leak
         await self.fetcher.close()
 
-        # Update the config
         self.config = new_config
 
-        # Update the fetcher with new nitter instance
         self.fetcher = TweetFetcher(new_config.general.nitter_instance)
 
-        # Update the notifier with new config
         self.notifier = Notifier(new_config)
+
+        self.instance_manager = NitterInstanceManager(
+            primary_instance=new_config.general.nitter_instance,
+            failure_threshold=3,
+            http_client=self.fetcher.client
+        )
+        self.state.current_instance = new_config.general.nitter_instance
 
     def cleanup_and_save(self) -> None:
         """退出前保存状态（合并增量文件）."""
