@@ -4,7 +4,7 @@ import pytest
 import tempfile
 from pathlib import Path
 
-from config import Config, GeneralConfig, UsersConfig
+from src.config import Config, GeneralConfig, UsersConfig
 
 
 class TestGeneralConfig:
@@ -19,9 +19,6 @@ class TestGeneralConfig:
         assert config.filter_replies is True
         assert config.persist_state is True
         assert config.max_saved_tweets == 1000
-        assert config.incremental_save is True
-        assert config.merge_threshold == 50
-        assert config.auto_merge_interval_sec == 60
 
     def test_validate_poll_interval_too_low(self):
         """Test validation fails when poll_interval_sec < 10."""
@@ -32,17 +29,6 @@ class TestGeneralConfig:
     def test_validate_poll_interval_valid(self):
         """Test validation passes when poll_interval_sec >= 10."""
         config = GeneralConfig(poll_interval_sec=10)
-        config.validate()  # Should not raise
-
-    def test_validate_auto_merge_negative(self):
-        """Test validation fails when auto_merge_interval_sec < 0."""
-        config = GeneralConfig(auto_merge_interval_sec=-1)
-        with pytest.raises(ValueError, match="auto_merge_interval_sec must be non-negative"):
-            config.validate()
-
-    def test_validate_auto_merge_zero(self):
-        """Test validation passes when auto_merge_interval_sec = 0 (disabled)."""
-        config = GeneralConfig(auto_merge_interval_sec=0)
         config.validate()  # Should not raise
 
     def test_validate_nitter_url_missing_protocol(self):

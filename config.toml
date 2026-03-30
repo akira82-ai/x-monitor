@@ -30,16 +30,6 @@ persist_state = true
 # 超过此数量时，旧推文会被从保存文件中移除
 max_saved_tweets = 1000
 
-# 是否启用增量保存
-# true = 只保存新增推文，减少磁盘写入，提高性能
-# false = 每次都保存全部推文（传统模式）
-incremental_save = true
-
-# 增量文件合并阈值
-# 当增量文件中的推文数量达到此值时，自动合并到主文件
-# 退出时总是会强制合并，确保数据不丢失
-merge_threshold = 50
-
 [users]
 # 要监控的 Twitter 用户列表
 # 输入用户名，不需要 @ 符号

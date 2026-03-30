@@ -4,7 +4,7 @@
 
 ```bash
 # Clone or download the project
-cd x-monitor-python
+cd x-monitor
 
 # Install dependencies
 make install
@@ -50,9 +50,16 @@ python3 main.py
 | `Q` | Quit |
 | `R` | Refresh now |
 | `Space` | Pause/Resume |
-| `D` | Toggle details |
 | `↓` or `J` | Next tweet |
 | `↑` or `K` | Previous tweet |
+| `←` or `PgUp` | Previous page |
+| `→` or `PgDn` | Next page |
+| `/` | Search/filter |
+| `U` | Filter current user |
+| `O` | Open selected tweet |
+| `C` | Copy selected tweet |
+| `Alt+↑/↓` | Scroll details |
+| `Alt+R` | Mark all as read |
 | `G` | Jump to bottom |
 | `g` | Jump to top |
 
@@ -121,4 +128,4 @@ max_tweets = 100  # Keep 100 tweets
 
 - Read the full [README.md](README.md)
 - Check [OVERVIEW.md](OVERVIEW.md) for technical details
-- Run tests: `python3 test.py`
+- Run tests: `python3 -m pytest tests/`

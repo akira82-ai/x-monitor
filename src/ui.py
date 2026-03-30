@@ -586,15 +586,13 @@ def create_key_bindings(state: AppState, monitor=None) -> KeyBindings:
         """Move down."""
         state.select_next()
         state.details_scroll_offset = 0  # Reset scroll offset
-        # 通过 StateManager 标记已读（写入文件）
-        if monitor and monitor.state_manager and state.selected_tweet:
-            if monitor.state_manager.mark_tweet_as_read(state.selected_tweet.id):
-                # 文件已更新，同步内存中的 is_new 状态
-                if state.selected_index < len(state.tweets):
-                    state.tweets[state.selected_index].is_new = False
-                    state.recalculate_new_count()
+        # 标记当前推文为已读
+        if state.selected_tweet and state.selected_tweet.is_new:
+            state.selected_tweet.is_new = False
+            state.recalculate_new_count()
         if state.new_tweets_count == 0 and monitor:
             monitor.notifier.clear_badge()
+            monitor.save_state()
         event.app.invalidate()
 
     @kb.add('k', filter=_not_searching_filter)
@@ -603,15 +601,13 @@ def create_key_bindings(state: AppState, monitor=None) -> KeyBindings:
         """Move up."""
         state.select_previous()
         state.details_scroll_offset = 0  # Reset scroll offset
-        # 通过 StateManager 标记已读（写入文件）
-        if monitor and monitor.state_manager and state.selected_tweet:
-            if monitor.state_manager.mark_tweet_as_read(state.selected_tweet.id):
-                # 文件已更新，同步内存中的 is_new 状态
-                if state.selected_index < len(state.tweets):
-                    state.tweets[state.selected_index].is_new = False
-                    state.recalculate_new_count()
+        # 标记当前推文为已读
+        if state.selected_tweet and state.selected_tweet.is_new:
+            state.selected_tweet.is_new = False
+            state.recalculate_new_count()
         if state.new_tweets_count == 0 and monitor:
             monitor.notifier.clear_badge()
+            monitor.save_state()
         event.app.invalidate()
 
     @kb.add('right', filter=_not_searching_filter)
@@ -620,15 +616,13 @@ def create_key_bindings(state: AppState, monitor=None) -> KeyBindings:
         """Next page."""
         state.next_page()
         state.details_scroll_offset = 0  # Reset scroll offset
-        # 通过 StateManager 标记已读（写入文件）
-        if monitor and monitor.state_manager and state.selected_tweet:
-            if monitor.state_manager.mark_tweet_as_read(state.selected_tweet.id):
-                # 文件已更新，同步内存中的 is_new 状态
-                if state.selected_index < len(state.tweets):
-                    state.tweets[state.selected_index].is_new = False
-                    state.recalculate_new_count()
+        # 标记当前推文为已读
+        if state.selected_tweet and state.selected_tweet.is_new:
+            state.selected_tweet.is_new = False
+            state.recalculate_new_count()
         if state.new_tweets_count == 0 and monitor:
             monitor.notifier.clear_badge()
+            monitor.save_state()
         event.app.invalidate()
 
     @kb.add('left', filter=_not_searching_filter)
@@ -637,15 +631,13 @@ def create_key_bindings(state: AppState, monitor=None) -> KeyBindings:
         """Previous page."""
         state.prev_page()
         state.details_scroll_offset = 0  # Reset scroll offset
-        # 通过 StateManager 标记已读（写入文件）
-        if monitor and monitor.state_manager and state.selected_tweet:
-            if monitor.state_manager.mark_tweet_as_read(state.selected_tweet.id):
-                # 文件已更新，同步内存中的 is_new 状态
-                if state.selected_index < len(state.tweets):
-                    state.tweets[state.selected_index].is_new = False
-                    state.recalculate_new_count()
+        # 标记当前推文为已读
+        if state.selected_tweet and state.selected_tweet.is_new:
+            state.selected_tweet.is_new = False
+            state.recalculate_new_count()
         if state.new_tweets_count == 0 and monitor:
             monitor.notifier.clear_badge()
+            monitor.save_state()
         event.app.invalidate()
 
     @kb.add('q', filter=_not_searching_filter)
@@ -758,13 +750,10 @@ def create_key_bindings(state: AppState, monitor=None) -> KeyBindings:
     def _(event):
         """Mark all tweets as read."""
         from datetime import datetime, timezone
-        if monitor and monitor.state_manager:
-            monitor.state_manager.mark_all_as_read_in_file()
-            # 同步内存中的状态
-            for tweet in state.tweets:
-                tweet.is_new = False
-            state.recalculate_new_count()
+        if monitor:
+            state.mark_all_as_read()
             monitor.notifier.clear_badge()
+            monitor.save_state()
             state.status_message = "已标记所有推文为已读"
             state.status_message_timestamp = datetime.now(timezone.utc)
         event.app.invalidate()
@@ -798,8 +787,9 @@ def create_style() -> Style:
 async def poll_tweets_background(state: AppState, config: Config, app: Application, refresh_callback: Callable):
     """Background task for polling tweets."""
     import time
-    from datetime import datetime, timezone
-    last_poll_time = time.time() - config.general.poll_interval_sec  # 立即触发一次轮询
+    last_poll_time = time.time()
+    if state.last_poll is None:
+        last_poll_time -= config.general.poll_interval_sec
 
     while True:
         try:
@@ -814,10 +804,6 @@ async def poll_tweets_background(state: AppState, config: Config, app: Applicati
             # Set loading state
             state.is_loading = True
             app.invalidate()
-
-            # Clear any previous error
-            state.error_message = None
-            state.error_timestamp = None
 
             try:
                 # Call the refresh callback

@@ -3,5 +3,5 @@
 import sys
 from pathlib import Path
 
-# Add src directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+# Add the repository root so tests can import the packaged modules via `src.*`.
+sys.path.insert(0, str(Path(__file__).parent.parent))

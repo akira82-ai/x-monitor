@@ -1,8 +1,8 @@
 # x-monitor Project Status
 
-**Version:** 0.2.0  
+**Version:** 0.2.4  
 **Status:** ✅ Ready to Use  
-**Last Updated:** 2026-02-25
+**Last Updated:** 2026-03-30
 
 ## ✅ Completed Features
 
@@ -15,7 +15,7 @@
 - [x] Error handling and recovery
 
 ### User Interface
-- [x] Clean TUI with Textual framework
+- [x] Clean TUI with prompt_toolkit
 - [x] Minimal design (lines, no color blocks)
 - [x] Bottom keybindings bar
 - [x] Status bar with icons
@@ -69,11 +69,11 @@ python3 main.py
 - **Total Files:** 20+
 - **Source Files:** 7 (src/*.py)
 - **Documentation:** 8 markdown files
-- **Scripts:** 3 (main.py, demo.py, test.py)
+- **Scripts:** 3 (main.py, demo.py, run.sh)
 - **Lines of Code:** ~1500+
-- **Dependencies:** 4 (textual, feedparser, httpx, toml)
+- **Dependencies:** 5 (prompt_toolkit, feedparser, httpx, toml, wcwidth)
 
-## 🎨 UI Improvements (v0.2.0)
+## 🎨 UI Improvements (v0.2.x)
 
 1. **Bottom Keybindings Bar**
    - Always visible shortcuts

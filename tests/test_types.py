@@ -3,7 +3,10 @@
 import pytest
 from datetime import datetime, timezone
 
-from types import Tweet, AppState
+from src.types import Tweet, AppState
+
+
+NOW = datetime.now(timezone.utc)
 
 
 class TestTweet:
@@ -16,7 +19,7 @@ class TestTweet:
             author="testuser",
             author_name="TESTUSER",
             content="Test tweet content",
-            timestamp=datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+            timestamp=NOW,
             url="https://twitter.com/testuser/status/123456",
             is_retweet=False,
             is_reply=False,
@@ -28,7 +31,7 @@ class TestTweet:
         assert data["author"] == "testuser"
         assert data["author_name"] == "TESTUSER"
         assert data["content"] == "Test tweet content"
-        assert data["timestamp"] == "2024-01-01T12:00:00+00:00"
+        assert data["timestamp"] == NOW.isoformat()
         assert data["url"] == "https://twitter.com/testuser/status/123456"
         assert data["is_retweet"] is False
         assert data["is_reply"] is False
@@ -41,7 +44,7 @@ class TestTweet:
             "author": "testuser",
             "author_name": "TESTUSER",
             "content": "Test tweet content",
-            "timestamp": "2024-01-01T12:00:00+00:00",
+            "timestamp": NOW.isoformat(),
             "url": "https://twitter.com/testuser/status/123456",
             "is_retweet": False,
             "is_reply": False,
@@ -53,7 +56,7 @@ class TestTweet:
         assert tweet.author == "testuser"
         assert tweet.author_name == "TESTUSER"
         assert tweet.content == "Test tweet content"
-        assert tweet.timestamp == datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        assert tweet.timestamp == NOW
         assert tweet.url == "https://twitter.com/testuser/status/123456"
         assert tweet.is_retweet is False
         assert tweet.is_reply is False
@@ -66,7 +69,7 @@ class TestTweet:
             author="testuser",
             author_name="TESTUSER",
             content="Test tweet content",
-            timestamp=datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+            timestamp=NOW,
             url="https://twitter.com/testuser/status/123456",
             is_retweet=False,
             is_reply=True,
@@ -138,7 +141,7 @@ class TestAppState:
                     "author": "user",
                     "author_name": "USER",
                     "content": "Test",
-                    "timestamp": "2024-01-01T12:00:00+00:00",
+                    "timestamp": NOW.isoformat(),
                     "url": "https://twitter.com/user/status/123",
                     "is_retweet": False,
                     "is_reply": False,

@@ -2,6 +2,13 @@
 
 All notable changes to x-monitor will be documented in this file.
 
+## [0.2.4] - 2026-03-30
+
+### Maintenance
+- Simplified state persistence by removing the old incremental save flow
+- Updated tests to match the current package layout and tweet expiry behavior
+- Aligned documentation with the prompt_toolkit-based UI
+
 ## [0.2.1] - 2026-02-25
 
 ### UI Visibility Improvements
@@ -48,7 +55,7 @@ All notable changes to x-monitor will be documented in this file.
 ### Initial Release
 - RSS feed fetching via Nitter
 - Real-time tweet monitoring
-- TUI interface with Textual
+- TUI interface with prompt_toolkit
 - Multiple user support
 - Notification system (bell, flash, desktop)
 - Configurable polling interval

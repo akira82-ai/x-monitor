@@ -8,7 +8,7 @@ x-monitor is a terminal-based dashboard for monitoring Twitter (X) users in real
 
 ✅ **No API Keys Required** - Uses public Nitter RSS feeds
 ✅ **Real-time Monitoring** - Configurable polling intervals
-✅ **Beautiful TUI** - Built with Textual framework
+✅ **Beautiful TUI** - Built with prompt_toolkit
 ✅ **Multiple Users** - Monitor multiple Twitter accounts simultaneously
 ✅ **Notifications** - Terminal bell, flash, and optional desktop notifications
 ✅ **Keyboard Navigation** - Vim-style keybindings
@@ -54,7 +54,7 @@ x-monitor-python/
 │   └── ui.py         # TUI interface
 ├── main.py           # Entry point
 ├── demo.py           # Demo mode
-├── test.py           # Test suite
+├── tests/            # Test suite
 ├── run.sh            # Startup script
 ├── Makefile          # Build automation
 └── config.toml       # User configuration
@@ -121,7 +121,7 @@ flash = true
 - **Error handling** - Graceful degradation
 
 ### Dependencies
-- **textual** - Modern TUI framework
+- **prompt_toolkit** - Modern TUI framework
 - **httpx** - Async HTTP client
 - **feedparser** - RSS parsing
 - **toml** - Configuration parsing
@@ -136,7 +136,7 @@ flash = true
 
 ```bash
 # Run test suite
-python test.py
+python -m pytest tests/
 
 # Run demo mode (no network needed)
 python demo.py
@@ -198,7 +198,7 @@ MIT License - Free to use, modify, and distribute.
 ## Credits
 
 Built with:
-- [Textual](https://textual.textualize.io/) - TUI framework
+- [prompt_toolkit](https://python-prompt-toolkit.readthedocs.io/) - TUI framework
 - [Nitter](https://github.com/zedeus/nitter) - Twitter frontend
 - [httpx](https://www.python-httpx.org/) - HTTP client
 - [feedparser](https://feedparser.readthedocs.io/) - RSS parser
@@ -206,5 +206,5 @@ Built with:
 ---
 
 **Status**: ✅ Production Ready
-**Version**: 0.1.0
-**Last Updated**: 2026-02-25
+**Version**: 0.2.4
+**Last Updated**: 2026-03-30

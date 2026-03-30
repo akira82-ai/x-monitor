@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.scripts]
-x-monitor = "x_monitor.main:main"
+x-monitor = "src.main:main"
 
 [build-system]
 requires = ["hatchling"]

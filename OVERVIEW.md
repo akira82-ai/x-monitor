@@ -11,10 +11,10 @@ x-monitor-python/
 │   ├── fetcher.py          # RSS feed fetching (httpx + feedparser)
 │   ├── monitor.py          # Polling logic (asyncio)
 │   ├── notifier.py         # Notification system
-│   └── ui.py               # TUI interface (Textual)
+│   └── ui.py               # TUI interface (prompt_toolkit)
 ├── config.toml             # User configuration
 ├── main.py                 # Entry point
-├── test.py                 # Test suite
+├── tests/                  # Test suite
 ├── run.sh                  # Startup script
 ├── Makefile                # Build automation
 ├── pyproject.toml          # Python project metadata
@@ -54,7 +54,7 @@ x-monitor-python/
    - Optional desktop notifications (via plyer)
 
 6. **ui.py** - Terminal User Interface
-   - Built with Textual framework
+   - Built with prompt_toolkit
    - Real-time tweet display
    - Keyboard navigation
    - Status panel
@@ -101,7 +101,7 @@ User Display
 - Easy customization
 
 ### 5. User Interface
-- Full-screen TUI with Textual
+- Full-screen TUI with prompt_toolkit
 - Vim-style keybindings
 - Real-time updates
 - Responsive design
@@ -114,11 +114,11 @@ User Display
 - Public access
 - Multiple instances available
 
-### Why Textual?
-- Modern TUI framework
-- Async-first design
-- Rich widget library
-- Good documentation
+### Why prompt_toolkit?
+- Mature terminal UI toolkit
+- Flexible custom layouts and key bindings
+- Good Unicode rendering support
+- Fits the current lightweight architecture
 
 ### Why httpx?
 - Async HTTP client
@@ -166,7 +166,7 @@ User Display
 
 Run the test suite:
 ```bash
-python test.py
+python -m pytest tests/
 ```
 
 ### Debugging
@@ -199,7 +199,7 @@ Enable verbose logging by modifying print statements in:
 ## Dependencies
 
 ### Core
-- `textual>=0.80.0`: TUI framework
+- `prompt_toolkit>=3.0.43`: TUI framework
 - `feedparser>=6.0.10`: RSS parsing
 - `httpx>=0.27.0`: Async HTTP client
 - `toml>=0.10.2`: TOML parsing

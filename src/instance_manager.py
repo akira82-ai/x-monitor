@@ -35,9 +35,12 @@ class NitterInstanceManager:
     async def record_failure(self, error: Exception) -> Optional[str]:
         """记录失败，达到阈值时返回新实例 URL."""
         self.failure_count += 1
-        logger.debug(
-            f"Instance failure recorded: {self.failure_count}/{self.failure_threshold} "
-            f"for {self.current_instance}"
+        logger.warning(
+            "Instance failure recorded: %s/%s for %s (%s)",
+            self.failure_count,
+            self.failure_threshold,
+            self.current_instance,
+            type(error).__name__,
         )
 
         if self.failure_count >= self.failure_threshold:
@@ -64,9 +67,13 @@ class NitterInstanceManager:
 
         new_instance = random.choice(available)
         logger.info(
-            f"Switching instance from {self.current_instance} to {new_instance} "
-            f"after {self.failure_count} failures"
+            "Switching instance from %s to %s after %s failures",
+            self.current_instance,
+            new_instance,
+            self.failure_count,
         )
+        self.current_instance = new_instance
+        self.failure_count = 0
         return new_instance
 
     def update_terminal_title(self, instance_url: str) -> None:

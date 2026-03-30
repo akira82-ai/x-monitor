@@ -16,16 +16,11 @@ class GeneralConfig:
     filter_replies: bool = True  # Filter out reply tweets
     persist_state: bool = True   # Persist state to disk
     max_saved_tweets: int = 1000  # Maximum number of tweets to save
-    incremental_save: bool = True  # Use incremental saving
-    merge_threshold: int = 50  # Threshold for merging incremental files
-    auto_merge_interval_sec: int = 60  # Auto-merge interval (seconds), 0 to disable
 
     def validate(self) -> None:
         """Validate general configuration."""
         if self.poll_interval_sec < 10:
             raise ValueError("poll_interval_sec must be at least 10 seconds")
-        if self.auto_merge_interval_sec < 0:
-            raise ValueError("auto_merge_interval_sec must be non-negative")
 
         # Validate nitter_instance URL
         try:
@@ -139,9 +134,6 @@ class Config:
                 "filter_replies": self.general.filter_replies,
                 "persist_state": self.general.persist_state,
                 "max_saved_tweets": self.general.max_saved_tweets,
-                "incremental_save": self.general.incremental_save,
-                "merge_threshold": self.general.merge_threshold,
-                "auto_merge_interval_sec": self.general.auto_merge_interval_sec,
             },
             "users": {
                 "handles": self.users.handles,

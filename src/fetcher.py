@@ -1,11 +1,13 @@
 """RSS feed fetcher for x-monitor."""
 
 import hashlib
+import logging
+import os
+from datetime import datetime, timezone
+from typing import List
+
 import feedparser
 import httpx
-import logging
-from datetime import datetime, timezone
-from typing import Optional, List
 
 from .types import Tweet
 
@@ -23,61 +25,57 @@ class TweetFetcher:
         """Initialize the fetcher with a Nitter instance URL."""
         self.nitter_instance = nitter_instance.rstrip("/")
         self.timeout = timeout
+        self.proxy = os.environ.get("https_proxy") or os.environ.get("http_proxy")
+        self.client = self._create_client()
 
-        # Get HTTP/HTTPS proxy (SOCKS not supported)
-        import os
-        proxy = os.environ.get('https_proxy') or os.environ.get('http_proxy')
-
-        # Create client with HTTP proxy support only
-        # trust_env=False prevents httpx from reading environment variables (avoid SOCKS proxy issues)
-        self.client = httpx.AsyncClient(
-            timeout=timeout,
+    def _create_client(self) -> httpx.AsyncClient:
+        """Create a fresh HTTP client instance."""
+        # trust_env=False prevents httpx from reading environment variables.
+        return httpx.AsyncClient(
+            timeout=self.timeout,
             headers={
                 "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             },
             follow_redirects=True,
-            proxy=proxy,  # Explicitly pass HTTP/HTTPS proxy
-            trust_env=False,  # Disable environment variable auto-detection
+            proxy=self.proxy,
+            trust_env=False,
         )
+
+    async def rebuild_client(self, reason: str = "") -> None:
+        """Recreate the HTTP client to drop stale connections after failures."""
+        old_client = self.client
+        self.client = self._create_client()
+
+        log_suffix = f" ({reason})" if reason else ""
+        logger.info("Rebuilding HTTP client%s for %s", log_suffix, self.nitter_instance)
+
+        await old_client.aclose()
 
     async def fetch_tweets(self, handle: str) -> List[Tweet]:
         """Fetch tweets for a specific user via RSS."""
         rss_url = f"{self.nitter_instance}/{handle}/rss"
+        response = await self.client.get(rss_url)
+        response.raise_for_status()
 
-        try:
-            response = await self.client.get(rss_url)
-            response.raise_for_status()
-
-            # Check response size
-            content_size = len(response.content)
-            if content_size > self.MAX_RSS_SIZE:
-                logger.warning(
-                    f"RSS feed too large for {handle}: {content_size} bytes "
-                    f"(max: {self.MAX_RSS_SIZE} bytes)"
-                )
-                return []
-
-            return self._parse_rss(response.text, handle)
-
-        except httpx.HTTPStatusError as e:
-            logger.debug(f"HTTP error fetching {handle}: {e}")
+        content_size = len(response.content)
+        if content_size > self.MAX_RSS_SIZE:
+            logger.warning(
+                "RSS feed too large for %s: %s bytes (max: %s bytes)",
+                handle,
+                content_size,
+                self.MAX_RSS_SIZE,
+            )
             return []
-        except httpx.RequestError as e:
-            logger.debug(f"Request error fetching {handle}: {e}")
-            return []
-        except (ValueError, KeyError) as e:
-            # RSS parsing error
-            logger.debug(f"RSS parsing error for {handle}: {e}")
-            return []
+
+        return self._parse_rss(response.text, handle)
 
     def _parse_rss(self, content: str, handle: str) -> List[Tweet]:
         """Parse RSS feed content into tweets."""
         feed = feedparser.parse(content)
 
-        if feed.bozo and feed.bozo_exception:
-            # Feed had parsing errors, but might still have entries
-            pass
+        if feed.bozo and feed.bozo_exception and not feed.entries:
+            raise ValueError(f"RSS parsing failed for {handle}: {feed.bozo_exception}")
 
         tweets = []
         for entry in feed.entries:
@@ -125,7 +123,7 @@ class TweetFetcher:
                 tweets.append(tweet)
 
             except Exception as e:
-                # Silent error handling
+                logger.warning("Skipping malformed RSS entry for %s: %s", handle, e)
                 continue
 
         return tweets
@@ -176,7 +174,7 @@ class TweetFetcher:
         """更新 Nitter 实例 URL（运行时切换）."""
         old_instance = self.nitter_instance
         self.nitter_instance = new_instance.rstrip("/")
-        logger.info(f"Fetcher instance updated: {old_instance} -> {self.nitter_instance}")
+        logger.info("Fetcher instance updated: %s -> %s", old_instance, self.nitter_instance)
 
     async def close(self) -> None:
         """Close the HTTP client."""

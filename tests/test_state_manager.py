@@ -4,10 +4,10 @@ import pytest
 import tempfile
 import json
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
-from state_manager import StateManager, atomic_write
-from types import Tweet, AppState
+from src.state_manager import StateManager, atomic_write
+from src.types import Tweet, AppState
 
 
 class TestAtomicWrite:
@@ -56,9 +56,7 @@ class TestStateManager:
         """Test StateManager initialization with default paths."""
         manager = StateManager()
         assert manager.max_tweets == 1000
-        assert manager.merge_threshold == 50
         assert manager.state_path is not None
-        assert manager.incremental_path is not None
 
     def test_save_and_load(self):
         """Test saving and loading state."""
@@ -67,7 +65,6 @@ class TestStateManager:
             state_path = Path(tmpdir) / "state.json"
             manager = StateManager(max_tweets=100)
             manager.state_path = state_path
-            manager.incremental_path = Path(tmpdir) / "incremental.json"
 
             # Create state with tweets
             state = AppState()
@@ -76,7 +73,7 @@ class TestStateManager:
                 author="user",
                 author_name="USER",
                 content="Test tweet",
-                timestamp=datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+                timestamp=datetime.now(timezone.utc),
                 url="https://twitter.com/user/status/123",
                 is_retweet=False,
                 is_reply=False,
@@ -103,7 +100,6 @@ class TestStateManager:
             state_path = Path(tmpdir) / "state.json"
             manager = StateManager(max_tweets=5)
             manager.state_path = state_path
-            manager.incremental_path = Path(tmpdir) / "incremental.json"
 
             # Create state with 10 tweets
             state = AppState()
@@ -133,148 +129,51 @@ class TestStateManager:
             # Counter should be recalculated
             assert loaded_state.new_tweets_count == 5
 
-    def test_save_incremental(self):
-        """Test incremental save functionality."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            manager = StateManager(max_tweets=100)
-            manager.state_path = Path(tmpdir) / "state.json"
-            manager.incremental_path = Path(tmpdir) / "incremental.json"
-
-            # Initial state
-            state = AppState()
-            tweet1 = Tweet(
-                id="1",
-                author="user",
-                author_name="USER",
-                content="First tweet",
-                timestamp=datetime.now(timezone.utc),
-                url="https://twitter.com/user/status/1",
-                is_retweet=False,
-                is_reply=False,
-            )
-            state.add_tweet(tweet1)
-
-            # Save main state
-            manager.save(state)
-
-            # Add new tweets incrementally
-            new_tweets = []
-            for i in range(3):
-                tweet = Tweet(
-                    id=f"new_{i}",
-                    author="user",
-                    author_name="USER",
-                    content=f"New tweet {i}",
-                    timestamp=datetime.now(timezone.utc),
-                    url=f"https://twitter.com/user/status/new_{i}",
-                    is_retweet=False,
-                    is_reply=False,
-                )
-                tweet.is_new = True
-                new_tweets.append(tweet)
-
-            # Incremental save
-            manager.save_incremental(state, new_tweets)
-
-            # Verify incremental file exists
-            assert manager.incremental_path.exists()
-
-            # Load and verify tweets are merged
-            loaded_state = manager.load()
-            # Should have original tweet + new tweets
-            assert len(loaded_state.tweets) == 4
-            assert loaded_state.tweets[0].id in ["new_0", "new_1", "new_2"]  # New tweets at front
-
-    def test_merge_incremental(self):
-        """Test merging incremental file into main file."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            manager = StateManager(max_tweets=100)
-            manager.state_path = Path(tmpdir) / "state.json"
-            manager.incremental_path = Path(tmpdir) / "incremental.json"
-
-            # Create main state file
-            main_state = AppState()
-            for i in range(3):
-                tweet = Tweet(
-                    id=f"main_{i}",
-                    author="user",
-                    author_name="USER",
-                    content=f"Main tweet {i}",
-                    timestamp=datetime.now(timezone.utc),
-                    url=f"https://twitter.com/user/status/main_{i}",
-                    is_retweet=False,
-                    is_reply=False,
-                )
-                tweet.is_new = False
-                main_state.tweets.append(tweet)
-                main_state.known_ids.add(f"main_{i}")
-
-            manager.save(main_state)
-
-            # Create incremental file
-            incremental_tweets = []
-            for i in range(2):
-                tweet = Tweet(
-                    id=f"inc_{i}",
-                    author="user",
-                    author_name="USER",
-                    content=f"Incremental tweet {i}",
-                    timestamp=datetime.now(timezone.utc),
-                    url=f"https://twitter.com/user/status/inc_{i}",
-                    is_retweet=False,
-                    is_reply=False,
-                )
-                incremental_tweets.append(tweet)
-
-            manager.save_incremental(AppState(), incremental_tweets)
-
-            # Merge
-            current_state = AppState()
-            current_state.tweets = main_state.tweets.copy()
-            current_state.known_ids = main_state.known_ids.copy()
-            manager.merge_incremental(current_state)
-
-            # Verify incremental file was deleted
-            assert not manager.incremental_path.exists()
-
-            # Verify main file contains all tweets
-            loaded_state = manager.load()
-            assert len(loaded_state.tweets) == 5  # 3 main + 2 incremental
-
     def test_load_nonexistent_returns_none(self):
-        """Test loading when no state files exist returns None."""
+        """Test loading when no state file exists returns None."""
         with tempfile.TemporaryDirectory() as tmpdir:
             manager = StateManager()
             manager.state_path = Path(tmpdir) / "nonexistent.json"
-            manager.incremental_path = Path(tmpdir) / "nonexistent_inc.json"
 
             state = manager.load()
             assert state is None
 
-    def test_cleanup_known_ids(self):
-        """Test that _cleanup_known_ids removes IDs not in current tweets."""
-        manager = StateManager()
+    def test_load_clears_new_flag_for_expired_tweets(self):
+        """Test tweets older than the expiry window are no longer marked new."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = StateManager()
+            manager.state_path = Path(tmpdir) / "state.json"
 
-        state = AppState()
-        # Add tweets
-        for i in range(3):
-            tweet = Tweet(
-                id=str(i),
+            old_tweet = Tweet(
+                id="old",
                 author="user",
                 author_name="USER",
-                content=f"Tweet {i}",
-                timestamp=datetime.now(timezone.utc),
-                url=f"https://twitter.com/user/status/{i}",
+                content="Old tweet",
+                timestamp=datetime.now(timezone.utc) - timedelta(days=8),
+                url="https://twitter.com/user/status/old",
                 is_retweet=False,
                 is_reply=False,
+                is_new=True,
             )
-            state.tweets.append(tweet)
 
-        # Add extra IDs not in tweets
-        state.known_ids = {"0", "1", "2", "999", "888"}
+            fresh_tweet = Tweet(
+                id="fresh",
+                author="user",
+                author_name="USER",
+                content="Fresh tweet",
+                timestamp=datetime.now(timezone.utc),
+                url="https://twitter.com/user/status/fresh",
+                is_retweet=False,
+                is_reply=False,
+                is_new=True,
+            )
 
-        # Clean up
-        manager._cleanup_known_ids(state)
+            state = AppState(tweets=[old_tweet, fresh_tweet], known_ids={"old", "fresh"})
+            state.new_tweets_count = 2
+            manager.save(state)
 
-        # Should only have IDs from current tweets
-        assert state.known_ids == {"0", "1", "2"}
+            loaded_state = manager.load()
+            assert loaded_state is not None
+            assert loaded_state.tweets[0].is_new is False
+            assert loaded_state.tweets[1].is_new is True
+            assert loaded_state.new_tweets_count == 1
