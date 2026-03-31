@@ -78,14 +78,13 @@ make run
 | `↑` / `↓` 或 `k` / `j` | 选择上/下一条推文 |
 | `←` / `→` 或 `PgUp` / `PgDn` | 上/下一页 |
 | `g` / `G` | 跳到第一/最后一条 |
-| `Space` | 暂停/恢复自动轮询 |
 | `r` | 立即刷新 |
 | `/` | 关键词搜索/过滤 |
 | `u` | 切换仅显示当前用户推文 |
 | `o` | 在浏览器中打开推文 |
 | `c` | 复制当前推文到剪贴板（Markdown 格式） |
 | `Alt+↑` / `Alt+↓` | 滚动详情面板 |
-| `Alt+R` / `F5` | 热重载配置文件 |
+| `Alt+R` | 标记全部为已读 |
 | `q` / `Ctrl+C` | 退出 |
 
 ## ⚙️ 配置
@@ -148,13 +147,19 @@ nitter_instance = "https://nitter.poast.org"
 **通知不工作？**
 - 检查配置文件中 `[notification]` 部分的 `enable = true`
 - 确保 `title_badge = true` 以显示窗口标题和 Dock 徽章
-- 运行测试脚本验证通知功能：`./test_notification_fix.py`
+- 运行手工验证脚本：`.venv/bin/python3 manual_checks/notification_check.py`
+
+**需要调试日志？**
+- 设置 `X_MONITOR_LOG_LEVEL=INFO` 或 `X_MONITOR_LOG_LEVEL=DEBUG` 后再启动，例如：
+```bash
+X_MONITOR_LOG_LEVEL=INFO .venv/bin/python3 main.py
+```
 
 **运行测试：**
 
 ```bash
-# 通知功能测试
-.venv/bin/python3 test_notification_fix.py
+# 通知功能手工检查
+.venv/bin/python3 manual_checks/notification_check.py
 
 # 单元测试
 .venv/bin/python3 -m pytest tests/

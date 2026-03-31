@@ -15,6 +15,10 @@ from .types import Tweet
 logger = logging.getLogger(__name__)
 
 
+class RSSParseError(ValueError):
+    """Raised when an RSS response cannot be parsed into entries."""
+
+
 class TweetFetcher:
     """Fetch tweets from Nitter RSS feeds."""
 
@@ -75,7 +79,7 @@ class TweetFetcher:
         feed = feedparser.parse(content)
 
         if feed.bozo and feed.bozo_exception and not feed.entries:
-            raise ValueError(f"RSS parsing failed for {handle}: {feed.bozo_exception}")
+            raise RSSParseError(f"RSS parsing failed for {handle}: {feed.bozo_exception}")
 
         tweets = []
         for entry in feed.entries:
@@ -170,11 +174,13 @@ class TweetFetcher:
 
         return False
 
-    async def update_instance(self, new_instance: str) -> None:
-        """更新 Nitter 实例 URL（运行时切换）."""
+    async def set_instance(self, new_instance: str, rebuild_client: bool = False) -> None:
+        """Update the active Nitter instance, optionally rebuilding the client."""
         old_instance = self.nitter_instance
         self.nitter_instance = new_instance.rstrip("/")
         logger.info("Fetcher instance updated: %s -> %s", old_instance, self.nitter_instance)
+        if rebuild_client:
+            await self.rebuild_client(reason="instance switch")
 
     async def close(self) -> None:
         """Close the HTTP client."""

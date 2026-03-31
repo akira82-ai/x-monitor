@@ -5,7 +5,7 @@
 项目已配置好监控三个 Twitter 账号：karpathy、dotey、op7418
 
 ```bash
-cd /Users/agiray/Desktop/test/x-monitor-python
+cd /Users/agiray/Desktop/github/x-monitor
 ./run.sh
 ```
 
@@ -74,6 +74,7 @@ max_tweets = 50         # 每账号最多 50 条推文
   ├─ 解析推文（ID、时间、内容、URL）
   ├─ 检查新推文（ID 去重）
   ├─ 添加到状态
+  ├─ 在网络异常时重建连接 / 必要时切换实例
   ├─ 触发通知
   ├─ 修剪旧推文（超过 max_tweets）
   └─ 刷新 UI
@@ -83,10 +84,13 @@ max_tweets = 50         # 每账号最多 50 条推文
 
 | 按键 | 功能 |
 |------|------|
-| **Space** | 暂停/恢复自动轮询 |
-| **R** | 立即刷新（无论是否暂停） |
+| **R** | 立即刷新 |
+| **/** | 搜索/过滤 |
+| **u** | 仅显示当前用户 |
+| **o** | 打开当前推文 |
+| **c** | 复制当前推文 |
 | **j/k** | 上下导航 |
-| **D** | 显示/隐藏详情 |
+| **←/→** | 翻页 |
 | **Q** | 退出 |
 
 ### 调整轮询间隔
@@ -108,9 +112,9 @@ poll_interval_sec = 300  # 更节省（5 分钟）
 ### 数据持久化
 
 **当前行为**：
-- 推文仅保存在内存
-- 关闭应用后数据丢失
-- 每次启动重新获取
+- 推文状态会保存到本地 `state.json`
+- 关闭应用后会恢复最近的浏览状态与未读状态
+- 启动后会在恢复历史状态基础上继续拉取最新推文
 
 **推文数量限制**：
 ```toml
@@ -125,7 +129,7 @@ max_tweets = 50  # 每账号最多 50 条
 ### 方法 1：直接运行（推荐）
 
 ```bash
-cd /Users/agiray/Desktop/test/x-monitor-python
+cd /Users/agiray/Desktop/github/x-monitor
 ./run.sh
 ```
 
@@ -158,15 +162,12 @@ python3 main.py --create-config
 
 2. **UI 显示**：
    ```
-   ┌─ x-monitor - Twitter User Monitoring ─┐
-   │ ▶ RUNNING • 📊 X tweets • 🕐 HH:MM:SS │
-   ├────────────────────────────────────────┤
-   │ @karpathy                              │
-   │ Tweet content here...                  │
-   │ 2 hours ago                            │
-   ├────────────────────────────────────────┤
-   │ Space:暂停 R:刷新 D:详情 Q:退出        │
-   └────────────────────────────────────────┘
+   x-monitor | ▶ • 🔔 X 条新 • N 条 • 1/2 页 • 刚刚
+   User             Content                         Date
+   ─────────────────────────────────────────────────────
+   @karpathy        Tweet content preview...       03-31
+   ...
+   Q:退出  ↑↓:选择  ←→:翻页  /:搜索  u:用户过滤  o:打开URL  c:复制
    ```
 
 3. **自动更新**：
@@ -247,7 +248,6 @@ auto_scroll = true
 ✅ **刷新机制**：
 - 自动：每 60 秒（可配置）
 - 手动：按 R 键
-- 暂停：按 Space 键
 
 ✅ **当前配置**：
 - 监控：karpathy, dotey, op7418
@@ -256,6 +256,6 @@ auto_scroll = true
 
 ✅ **立即使用**：
 ```bash
-cd /Users/agiray/Desktop/test/x-monitor-python
+cd /Users/agiray/Desktop/github/x-monitor
 ./run.sh
 ```

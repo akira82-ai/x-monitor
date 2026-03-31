@@ -3,7 +3,7 @@
 import pytest
 from datetime import datetime, timezone
 
-from src.types import Tweet, AppState
+from src.types import AppState, FeedbackState, TimelineState, Tweet, UiState
 
 
 NOW = datetime.now(timezone.utc)
@@ -98,6 +98,9 @@ class TestAppState:
     def test_default_values(self):
         """Test default AppState values."""
         state = AppState()
+        assert isinstance(state.timeline, TimelineState)
+        assert isinstance(state.ui, UiState)
+        assert isinstance(state.feedback, FeedbackState)
         assert state.tweets == []
         assert state.known_ids == set()
         assert state.selected_index == 0
@@ -106,6 +109,20 @@ class TestAppState:
         assert state.paused is False
         assert state.filter_keyword is None
         assert state.filter_user is None
+
+    def test_compat_properties_map_to_nested_state(self):
+        """Legacy AppState properties should still map onto the split state objects."""
+        state = AppState()
+
+        state.current_instance = "https://nitter.net"
+        state.status_message = "ok"
+        state.error_message = "err"
+        state.selected_index = 3
+
+        assert state.timeline.current_instance == "https://nitter.net"
+        assert state.feedback.status_message == "ok"
+        assert state.feedback.error_message == "err"
+        assert state.ui.selected_index == 3
 
     def test_to_dict(self):
         """Test AppState serialization to dictionary."""

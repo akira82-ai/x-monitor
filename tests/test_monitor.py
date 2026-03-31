@@ -7,7 +7,7 @@ import httpx
 import pytest
 
 from src.config import Config
-from src.monitor import Monitor
+from src.monitor import HandlePollResult, Monitor
 from src.types import AppState, Tweet
 
 
@@ -45,9 +45,9 @@ async def test_poll_once_does_not_mark_request_error_as_success():
     monitor.instance_manager.record_failure = AsyncMock(return_value=None)
     monitor.instance_manager.record_success = AsyncMock()
 
-    total_new = await monitor.poll_once()
+    poll_result = await monitor.poll_once()
 
-    assert total_new == 0
+    assert poll_result.total_new == 0
     assert monitor.instance_manager.record_success.await_count == 0
     assert monitor.instance_manager.record_failure.await_count == 2
     assert monitor.fetcher.rebuild_client.await_count == 2
@@ -67,21 +67,42 @@ async def test_poll_once_switches_instance_and_recovers():
         ]
     )
     monitor.fetcher.rebuild_client = AsyncMock()
-    monitor.fetcher.update_instance = AsyncMock()
+    monitor.fetcher.set_instance = AsyncMock()
     monitor.instance_manager.record_failure = AsyncMock(return_value="https://nitter.poast.org")
     monitor.instance_manager.record_success = AsyncMock()
     monitor.instance_manager.update_terminal_title = Mock()
 
-    total_new = await monitor.poll_once()
+    poll_result = await monitor.poll_once()
 
-    assert total_new == 1
+    assert poll_result.total_new == 1
     assert monitor.fetcher.rebuild_client.await_count == 1
-    monitor.fetcher.update_instance.assert_awaited_once_with("https://nitter.poast.org")
+    monitor.fetcher.set_instance.assert_awaited_once_with("https://nitter.poast.org", rebuild_client=False)
     monitor.instance_manager.record_success.assert_awaited_once()
     monitor.instance_manager.update_terminal_title.assert_called_once_with("https://nitter.poast.org")
     assert monitor.state.current_instance == "https://nitter.poast.org"
     assert monitor.state.error_message is None
     assert monitor.state.status_message == "实例已切换: https://nitter.poast.org"
+
+
+@pytest.mark.asyncio
+async def test_poll_once_does_not_failover_for_non_retryable_http_error():
+    """Client-side HTTP errors should be surfaced without rebuild or failover."""
+    monitor = Monitor(make_config(), AppState())
+    request = httpx.Request("GET", "https://nitter.net/testuser/rss")
+    response = httpx.Response(404, request=request)
+
+    monitor.fetcher.fetch_tweets = AsyncMock(
+        side_effect=httpx.HTTPStatusError("not found", request=request, response=response)
+    )
+    monitor.fetcher.rebuild_client = AsyncMock()
+    monitor.instance_manager.record_failure = Mock()
+
+    poll_result = await monitor.poll_once()
+
+    assert poll_result.failed_handles == 1
+    assert monitor.fetcher.rebuild_client.await_count == 0
+    monitor.instance_manager.record_failure.assert_not_called()
+    assert monitor.state.error_message == "HTTP 错误: @testuser (404)"
 
 
 @pytest.mark.asyncio
@@ -94,9 +115,10 @@ async def test_poll_once_clears_previous_error_after_recovery():
     monitor.instance_manager.record_failure = AsyncMock()
     monitor.instance_manager.record_success = AsyncMock()
 
-    total_new = await monitor.poll_once()
+    poll_result = await monitor.poll_once()
 
-    assert total_new == 0
+    assert poll_result.total_new == 0
+    assert poll_result.recovered is True
     assert monitor.state.error_message is None
     assert monitor.state.status_message == "网络恢复后已重新连接"
 
@@ -110,7 +132,9 @@ async def test_main_async_uses_monitor_poll_once(monkeypatch):
     fake_tracker = Mock()
     fake_tracker.add_step.side_effect = [f"step_{i}" for i in range(10)]
     fake_monitor = Mock()
-    fake_monitor.poll_once = AsyncMock(return_value=0)
+    fake_poll_result = Mock(total_new=0)
+    fake_monitor.poll_once = AsyncMock(return_value=fake_poll_result)
+    fake_monitor.refresh = AsyncMock(return_value=fake_poll_result)
     fake_monitor.instance_manager = Mock()
     fake_monitor.instance_manager.update_terminal_title = Mock()
     fake_monitor.notifier = Mock()
@@ -135,3 +159,21 @@ async def test_main_async_uses_monitor_poll_once(monkeypatch):
     await main_module.main_async()
 
     fake_monitor.poll_once.assert_awaited_once()
+    fake_monitor.refresh.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_poll_once_reports_handle_progress():
+    """Monitor should expose structured per-handle progress to all callers."""
+    monitor = Monitor(make_config(), AppState())
+    monitor.fetcher.fetch_tweets = AsyncMock(return_value=[make_tweet("2")])
+    monitor.instance_manager.record_success = AsyncMock()
+
+    events: list[HandlePollResult] = []
+
+    poll_result = await monitor.poll_once(progress_callback=events.append)
+
+    assert poll_result.total_handles == 1
+    assert poll_result.handle_results[0].handle == "testuser"
+    assert poll_result.handle_results[0].new_count == 1
+    assert [event.outcome for event in events] == ["start", "success"]

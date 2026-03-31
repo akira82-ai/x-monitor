@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 import httpx
 import pytest
 
-from src.fetcher import TweetFetcher
+from src.fetcher import RSSParseError, TweetFetcher
 
 
 def make_response(status_code: int = 200, text: str = "") -> httpx.Response:
@@ -46,7 +46,7 @@ async def test_fetch_tweets_raises_parse_error_for_broken_feed():
     fetcher = TweetFetcher("https://nitter.net")
     fetcher.client.get = AsyncMock(return_value=make_response(text="<rss"))
 
-    with pytest.raises(ValueError, match="RSS parsing failed"):
+    with pytest.raises(RSSParseError, match="RSS parsing failed"):
         await fetcher.fetch_tweets("test")
 
     await fetcher.close()

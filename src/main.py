@@ -4,7 +4,8 @@ import argparse
 import asyncio
 
 from .config import Config
-from .monitor import Monitor
+from .logging_utils import configure_logging
+from .monitor import HandlePollResult, Monitor
 from .state_manager import StateManager
 from .types import AppState
 from .ui import run_ui
@@ -13,6 +14,8 @@ from .startup_tracker import StartupTracker
 
 async def main_async() -> None:
     """Main async entry point."""
+    configure_logging()
+
     parser = argparse.ArgumentParser(
         description="x-monitor - X (Twitter) User Monitoring Dashboard"
     )
@@ -80,9 +83,9 @@ async def main_async() -> None:
     monitor.instance_manager.update_terminal_title(config.general.nitter_instance)
     tracker.complete(title_step)
 
-    async def do_refresh() -> int:
-        """Refresh tweets and return count of new tweets."""
-        return await monitor.poll_once()
+    async def do_refresh():
+        """Refresh tweets through the shared monitor polling flow."""
+        return await monitor.refresh()
 
     poll_step = tracker.add_step("初始轮询")
     tracker.start(poll_step)
@@ -91,19 +94,22 @@ async def main_async() -> None:
         for handle in config.users.handles
     }
 
-    def startup_progress(handle: str, status: str, message: str) -> None:
-        step_id = user_steps[handle]
-        if status == "start":
-            tracker.update(step_id, message)
-        elif status == "success":
+    def startup_progress(result: HandlePollResult) -> None:
+        step_id = user_steps[result.handle]
+        if result.outcome == "start":
+            tracker.update(step_id, result.message)
+        elif result.outcome == "success":
+            message = result.message
+            if result.new_count > 0:
+                message = f"{message}, {result.new_count} 条新"
             tracker.complete(step_id, message)
         else:
-            tracker.fail(step_id, message)
+            tracker.fail(step_id, result.message)
 
-    total_new = await monitor.poll_once(progress_callback=startup_progress)
+    poll_result = await monitor.poll_once(progress_callback=startup_progress)
 
-    if total_new > 0:
-        poll_msg = f"共加载 {total_new} 条新推文"
+    if poll_result.total_new > 0:
+        poll_msg = f"共加载 {poll_result.total_new} 条新推文"
     else:
         poll_msg = f"共加载 {len(state.tweets)} 条推文"
     tracker.complete(poll_step, poll_msg)

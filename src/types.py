@@ -92,40 +92,264 @@ class Tweet:
 
 
 @dataclass
-class AppState:
-    """Application state."""
+class TimelineState:
+    """Domain state for the monitored timeline."""
+
     tweets: List[Tweet] = field(default_factory=list)
     known_ids: set = field(default_factory=set)
-    selected_index: int = 0
-    current_page: int = 0  # Current page number (starts from 0)
-    page_size: int = 10  # Rows per page (dynamically adjusted based on screen height)
-    paused: bool = False
     last_poll: Optional[datetime] = None
-    status_message: str = "Initializing..."
-    status_message_timestamp: Optional[datetime] = None  # When the status message was set
     new_tweets_count: int = 0
-
-    # Filter states
-    filter_keyword: Optional[str] = None  # Keyword filter for tweets
-    filter_user: Optional[str] = None  # User filter (author)
-    unfiltered_tweets: Optional[List[Tweet]] = None  # Backup of full list before filtering
-
-    # Details panel scroll
-    details_scroll_offset: int = 0  # Scroll offset for details panel
-
-    # Loading and error states
-    is_loading: bool = False  # Loading indicator
-    error_message: Optional[str] = None  # Error message to display
-    error_timestamp: Optional[datetime] = None  # When the error occurred
-
-    # Search overlay state
-    search_visible: bool = False  # Whether search overlay is visible
-
-    # Current Nitter instance (not persisted)
     current_instance: Optional[str] = None
+
+
+@dataclass
+class UiState:
+    """Presentation state for the terminal UI."""
+
+    selected_index: int = 0
+    current_page: int = 0
+    page_size: int = 10
+    paused: bool = False
+    filter_keyword: Optional[str] = None
+    filter_user: Optional[str] = None
+    unfiltered_tweets: Optional[List[Tweet]] = None
+    details_scroll_offset: int = 0
+    is_loading: bool = False
+    search_visible: bool = False
+
+
+@dataclass
+class FeedbackState:
+    """Transient user-facing messages and errors."""
+
+    status_message: str = "Initializing..."
+    status_message_timestamp: Optional[datetime] = None
+    error_message: Optional[str] = None
+    error_timestamp: Optional[datetime] = None
+
+
+@dataclass(init=False)
+class AppState:
+    """Application state composed of domain, UI, and feedback concerns."""
+
+    timeline: TimelineState = field(default_factory=TimelineState)
+    ui: UiState = field(default_factory=UiState)
+    feedback: FeedbackState = field(default_factory=FeedbackState)
 
     # Expiry time for new tweets (days)
     NEW_TWEET_EXPIRY_DAYS = 7
+
+    def __init__(
+        self,
+        timeline: Optional[TimelineState] = None,
+        ui: Optional[UiState] = None,
+        feedback: Optional[FeedbackState] = None,
+        **legacy_fields,
+    ):
+        """Initialize state while remaining compatible with legacy keyword construction."""
+        self.timeline = timeline if timeline is not None else TimelineState()
+        self.ui = ui if ui is not None else UiState()
+        self.feedback = feedback if feedback is not None else FeedbackState()
+
+        legacy_map = {
+            "tweets": ("timeline", "tweets"),
+            "known_ids": ("timeline", "known_ids"),
+            "last_poll": ("timeline", "last_poll"),
+            "new_tweets_count": ("timeline", "new_tweets_count"),
+            "current_instance": ("timeline", "current_instance"),
+            "selected_index": ("ui", "selected_index"),
+            "current_page": ("ui", "current_page"),
+            "page_size": ("ui", "page_size"),
+            "paused": ("ui", "paused"),
+            "filter_keyword": ("ui", "filter_keyword"),
+            "filter_user": ("ui", "filter_user"),
+            "unfiltered_tweets": ("ui", "unfiltered_tweets"),
+            "details_scroll_offset": ("ui", "details_scroll_offset"),
+            "is_loading": ("ui", "is_loading"),
+            "search_visible": ("ui", "search_visible"),
+            "status_message": ("feedback", "status_message"),
+            "status_message_timestamp": ("feedback", "status_message_timestamp"),
+            "error_message": ("feedback", "error_message"),
+            "error_timestamp": ("feedback", "error_timestamp"),
+        }
+
+        for field_name, value in legacy_fields.items():
+            if field_name not in legacy_map:
+                raise TypeError(f"__init__() got an unexpected keyword argument '{field_name}'")
+            group_name, attr_name = legacy_map[field_name]
+            getattr(self, group_name).__setattr__(attr_name, value)
+
+    @property
+    def tweets(self) -> List[Tweet]:
+        return self.timeline.tweets
+
+    @tweets.setter
+    def tweets(self, value: List[Tweet]) -> None:
+        self.timeline.tweets = value
+
+    @property
+    def known_ids(self) -> set:
+        return self.timeline.known_ids
+
+    @known_ids.setter
+    def known_ids(self, value: set) -> None:
+        self.timeline.known_ids = value
+
+    @property
+    def last_poll(self) -> Optional[datetime]:
+        return self.timeline.last_poll
+
+    @last_poll.setter
+    def last_poll(self, value: Optional[datetime]) -> None:
+        self.timeline.last_poll = value
+
+    @property
+    def new_tweets_count(self) -> int:
+        return self.timeline.new_tweets_count
+
+    @new_tweets_count.setter
+    def new_tweets_count(self, value: int) -> None:
+        self.timeline.new_tweets_count = value
+
+    @property
+    def current_instance(self) -> Optional[str]:
+        return self.timeline.current_instance
+
+    @current_instance.setter
+    def current_instance(self, value: Optional[str]) -> None:
+        self.timeline.current_instance = value
+
+    @property
+    def selected_index(self) -> int:
+        return self.ui.selected_index
+
+    @selected_index.setter
+    def selected_index(self, value: int) -> None:
+        self.ui.selected_index = value
+
+    @property
+    def current_page(self) -> int:
+        return self.ui.current_page
+
+    @current_page.setter
+    def current_page(self, value: int) -> None:
+        self.ui.current_page = value
+
+    @property
+    def page_size(self) -> int:
+        return self.ui.page_size
+
+    @page_size.setter
+    def page_size(self, value: int) -> None:
+        self.ui.page_size = value
+
+    @property
+    def paused(self) -> bool:
+        return self.ui.paused
+
+    @paused.setter
+    def paused(self, value: bool) -> None:
+        self.ui.paused = value
+
+    @property
+    def filter_keyword(self) -> Optional[str]:
+        return self.ui.filter_keyword
+
+    @filter_keyword.setter
+    def filter_keyword(self, value: Optional[str]) -> None:
+        self.ui.filter_keyword = value
+
+    @property
+    def filter_user(self) -> Optional[str]:
+        return self.ui.filter_user
+
+    @filter_user.setter
+    def filter_user(self, value: Optional[str]) -> None:
+        self.ui.filter_user = value
+
+    @property
+    def unfiltered_tweets(self) -> Optional[List[Tweet]]:
+        return self.ui.unfiltered_tweets
+
+    @unfiltered_tweets.setter
+    def unfiltered_tweets(self, value: Optional[List[Tweet]]) -> None:
+        self.ui.unfiltered_tweets = value
+
+    @property
+    def details_scroll_offset(self) -> int:
+        return self.ui.details_scroll_offset
+
+    @details_scroll_offset.setter
+    def details_scroll_offset(self, value: int) -> None:
+        self.ui.details_scroll_offset = value
+
+    @property
+    def is_loading(self) -> bool:
+        return self.ui.is_loading
+
+    @is_loading.setter
+    def is_loading(self, value: bool) -> None:
+        self.ui.is_loading = value
+
+    @property
+    def search_visible(self) -> bool:
+        return self.ui.search_visible
+
+    @search_visible.setter
+    def search_visible(self, value: bool) -> None:
+        self.ui.search_visible = value
+
+    @property
+    def status_message(self) -> str:
+        return self.feedback.status_message
+
+    @status_message.setter
+    def status_message(self, value: str) -> None:
+        self.feedback.status_message = value
+
+    @property
+    def status_message_timestamp(self) -> Optional[datetime]:
+        return self.feedback.status_message_timestamp
+
+    @status_message_timestamp.setter
+    def status_message_timestamp(self, value: Optional[datetime]) -> None:
+        self.feedback.status_message_timestamp = value
+
+    @property
+    def error_message(self) -> Optional[str]:
+        return self.feedback.error_message
+
+    @error_message.setter
+    def error_message(self, value: Optional[str]) -> None:
+        self.feedback.error_message = value
+
+    @property
+    def error_timestamp(self) -> Optional[datetime]:
+        return self.feedback.error_timestamp
+
+    @error_timestamp.setter
+    def error_timestamp(self, value: Optional[datetime]) -> None:
+        self.feedback.error_timestamp = value
+
+    def set_status(self, message: str, timestamp: Optional[datetime] = None) -> None:
+        """Set a transient user-facing status message."""
+        self.feedback.status_message = message
+        self.feedback.status_message_timestamp = timestamp
+
+    def clear_status(self) -> None:
+        """Clear the current status message."""
+        self.feedback.status_message = "Initializing..."
+        self.feedback.status_message_timestamp = None
+
+    def set_error(self, message: str, timestamp: Optional[datetime] = None) -> None:
+        """Set a sticky error message."""
+        self.feedback.error_message = message
+        self.feedback.error_timestamp = timestamp
+
+    def clear_error(self) -> None:
+        """Clear the current error message."""
+        self.feedback.error_message = None
+        self.feedback.error_timestamp = None
 
     def _cleanup_old_new_tweets(self) -> None:
         """清理过期的未读标记（7天以上的推文不再标记为未读）."""
@@ -330,6 +554,10 @@ class AppState:
         self.selected_index = 0
         self.current_page = 0
         self.new_tweets_count = 0
+        self.filter_keyword = None
+        self.filter_user = None
+        self.unfiltered_tweets = None
+        self.details_scroll_offset = 0
 
     def to_dict(self) -> dict:
         """将 AppState 转换为可序列化的字典."""
@@ -353,17 +581,23 @@ class AppState:
     def from_dict(cls, data: dict) -> "AppState":
         """从字典创建 AppState 对象."""
         state = cls()
-        state.tweets = [Tweet.from_dict(t) for t in data.get("tweets", [])]
-        state.known_ids = set(data.get("known_ids", []))
-        state.selected_index = data.get("selected_index", 0)
-        state.current_page = data.get("current_page", 0)
-        state.page_size = data.get("page_size", 10)
-        state.paused = data.get("paused", False)
-        state.status_message = data.get("status_message", "Initializing...")
-        state.new_tweets_count = data.get("new_tweets_count", 0)
-        state.filter_keyword = data.get("filter_keyword")
-        state.filter_user = data.get("filter_user")
-        state.details_scroll_offset = data.get("details_scroll_offset", 0)
+        state.timeline = TimelineState(
+            tweets=[Tweet.from_dict(t) for t in data.get("tweets", [])],
+            known_ids=set(data.get("known_ids", [])),
+            new_tweets_count=data.get("new_tweets_count", 0),
+        )
+        state.ui = UiState(
+            selected_index=data.get("selected_index", 0),
+            current_page=data.get("current_page", 0),
+            page_size=data.get("page_size", 10),
+            paused=data.get("paused", False),
+            filter_keyword=data.get("filter_keyword"),
+            filter_user=data.get("filter_user"),
+            details_scroll_offset=data.get("details_scroll_offset", 0),
+        )
+        state.feedback = FeedbackState(
+            status_message=data.get("status_message", "Initializing..."),
+        )
 
         if data.get("last_poll"):
             from datetime import datetime, timezone

@@ -3,7 +3,7 @@
 ## Project Structure
 
 ```
-x-monitor-python/
+x-monitor/
 ├── src/
 │   ├── __init__.py         # Package initialization
 │   ├── config.py           # Configuration management (TOML)

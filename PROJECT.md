@@ -1,4 +1,4 @@
-# x-monitor-python - Project Summary
+# x-monitor - Project Summary
 
 ## What is x-monitor?
 
@@ -44,7 +44,7 @@ That's it! The script will:
 ## Project Structure
 
 ```
-x-monitor-python/
+x-monitor/
 ├── src/              # Source code
 │   ├── config.py     # Configuration
 │   ├── types.py      # Data structures

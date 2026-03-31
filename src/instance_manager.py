@@ -1,11 +1,8 @@
 """Nitter instance management with automatic failover."""
 
 import logging
-import random
 from typing import Optional
 from urllib.parse import urlparse
-
-import httpx
 
 
 logger = logging.getLogger(__name__)
@@ -25,14 +22,12 @@ class NitterInstanceManager:
         self,
         primary_instance: str,
         failure_threshold: int = 3,
-        http_client: httpx.AsyncClient = None
     ):
         self.current_instance = primary_instance.rstrip("/")
         self.failure_threshold = failure_threshold
         self.failure_count = 0
-        self._http_client = http_client
 
-    async def record_failure(self, error: Exception) -> Optional[str]:
+    def record_failure(self, error: Exception) -> Optional[str]:
         """记录失败，达到阈值时返回新实例 URL."""
         self.failure_count += 1
         logger.warning(
@@ -44,28 +39,33 @@ class NitterInstanceManager:
         )
 
         if self.failure_count >= self.failure_threshold:
-            return await self._select_next_instance()
+            return self._select_next_instance()
         return None
 
-    async def record_success(self) -> None:
+    def record_success(self) -> None:
         """记录成功，重置失败计数."""
         if self.failure_count > 0:
             logger.debug(
-                f"Instance success recorded, resetting failure count "
-                f"({self.failure_count} -> 0) for {self.current_instance}"
+                "Instance success recorded, resetting failure count (%s -> 0) for %s",
+                self.failure_count,
+                self.current_instance,
             )
         self.failure_count = 0
 
-    async def _select_next_instance(self) -> Optional[str]:
+    def _select_next_instance(self) -> Optional[str]:
         """选择下一个可用实例."""
         instances = self.DEFAULT_INSTANCES
-        available = [inst for inst in instances if inst != self.current_instance]
+        if self.current_instance in instances:
+            current_index = instances.index(self.current_instance)
+            available = instances[current_index + 1:] + instances[:current_index]
+        else:
+            available = instances[:]
 
         if not available:
             logger.warning("No alternative instances available")
             return None
 
-        new_instance = random.choice(available)
+        new_instance = available[0]
         logger.info(
             "Switching instance from %s to %s after %s failures",
             self.current_instance,

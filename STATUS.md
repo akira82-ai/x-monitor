@@ -183,7 +183,8 @@ make test                # Run tests
 ```
 Q          Quit
 R          Refresh
-Space      Pause/Resume
+/:         Search / Filter
+Alt+R      Mark all as read
 D          Details
 ↑↓/JK      Navigate
 g/G        Top/Bottom

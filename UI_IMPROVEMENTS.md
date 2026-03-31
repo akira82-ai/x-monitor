@@ -1,4 +1,7 @@
-# UI Improvements - v0.2.1
+# UI Improvements - v0.2.1 (Archived)
+
+> 归档说明：本文档描述的是早期 UI 调整过程，包含 Textual 相关说明，已不再代表当前实现。
+> 当前 UI 基于 `prompt_toolkit`，快捷键和布局以 `README` 与 `src/ui.py` 为准。
 
 ## Issues Identified
 

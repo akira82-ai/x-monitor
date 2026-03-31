@@ -49,7 +49,6 @@ python3 main.py
 |-----|--------|
 | `Q` | Quit |
 | `R` | Refresh now |
-| `Space` | Pause/Resume |
 | `↓` or `J` | Next tweet |
 | `↑` or `K` | Previous tweet |
 | `←` or `PgUp` | Previous page |
