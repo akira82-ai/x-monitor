@@ -2,12 +2,14 @@
 
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 from prompt_toolkit.keys import Keys
 
 from src.config import Config
+from src.subscription_actions import SubscriptionActions
 from src.types import AppState, Tweet
+from src.ui_add_user import AddUserOverlay
 from src.ui_columns import COLUMN_SEPARATOR
 from src.ui_controls import TweetDetailsControl, TweetTableControl, UserListControl
 from src.ui_keybindings import create_key_bindings
@@ -53,15 +55,17 @@ def test_users_are_sorted_alphabetically_and_show_unread_counts():
     control = UserListControl(state)
 
     content = control.create_content(width=20, height=5)
-    rendered = ["".join(fragment[1] for fragment in content.get_line(i)) for i in range(3)]
+    rendered = ["".join(fragment[1] for fragment in content.get_line(i)) for i in range(4)]
 
     assert state.sorted_users == ["dotey", "openai", "sama"]
     assert rendered[0].startswith(" ")
-    assert rendered[0].strip() == "@dotey(1)"
+    assert rendered[0].strip() == "+ Add user"
     assert rendered[1].startswith(" ")
-    assert rendered[1].strip() == "@openai"
+    assert rendered[1].strip() == "@dotey(1)"
     assert rendered[2].startswith(" ")
-    assert rendered[2].strip() == "@sama"
+    assert rendered[2].strip() == "@openai"
+    assert rendered[3].startswith(" ")
+    assert rendered[3].strip() == "@sama"
 
 
 def test_each_user_keeps_independent_post_position_and_page():
@@ -106,7 +110,7 @@ def test_selecting_post_marks_it_read_and_reduces_unread_count():
     state.recalculate_new_count()
     state.ui.focus_column = "posts"
 
-    kb = create_key_bindings(state=state, monitor=None, search_overlay=None, layout_factory=lambda *_: None)
+    kb = create_key_bindings(state=state, monitor=None, search_overlay=None, add_user_overlay=None, layout_factory=lambda *_: None)
     event = make_event()
 
     invoke_binding(kb, Keys.Down, event)
@@ -127,7 +131,7 @@ def test_tab_cycles_focus_between_users_and_posts_only():
     )
     state.set_monitored_handles(["dotey"])
     state.page_size = 1
-    kb = create_key_bindings(state=state, monitor=None, search_overlay=None, layout_factory=lambda *_: None)
+    kb = create_key_bindings(state=state, monitor=None, search_overlay=None, add_user_overlay=None, layout_factory=lambda *_: None)
     event = make_event()
 
     invoke_binding(kb, Keys.ControlI, event)
@@ -148,7 +152,7 @@ def test_alt_arrow_scrolls_details_without_detail_focus():
     state = AppState(tweets=[make_tweet("1", "dotey", minutes_ago=1)])
     state.set_monitored_handles(["dotey"])
     state.ui.focus_column = "posts"
-    kb = create_key_bindings(state=state, monitor=None, search_overlay=None, layout_factory=lambda *_: None)
+    kb = create_key_bindings(state=state, monitor=None, search_overlay=None, add_user_overlay=None, layout_factory=lambda *_: None)
     event = make_event()
 
     invoke_binding_sequence(kb, (Keys.Escape, Keys.Down), event)
@@ -169,6 +173,7 @@ def test_layout_footer_no_longer_mentions_search():
     footer_text = footer_window.content.text()
 
     assert "Tab左中切栏" in footer_text
+    assert "Enter添加" in footer_text
     assert "/:搜索" not in footer_text
 
 
@@ -212,3 +217,27 @@ def test_details_render_with_left_padding_for_readability():
 
     assert first_line.startswith(" @dotey")
     assert time_line.startswith(" 发布时间:")
+
+
+def test_enter_opens_add_user_overlay_and_escape_closes_it():
+    """The add-user action row should open a modal input from the keyboard."""
+    state = AppState()
+    state.set_monitored_handles(["dotey"])
+    state.ui.add_user_selected = True
+    monitor = Mock(fetch_handle_now=AsyncMock())
+    overlay = AddUserOverlay(SubscriptionActions(Config(), state, monitor))
+    kb = create_key_bindings(state=state, monitor=monitor, search_overlay=None, add_user_overlay=overlay, layout_factory=lambda *_: None)
+    event = SimpleNamespace(
+        app=SimpleNamespace(
+            invalidate=Mock(),
+            exit=Mock(),
+            create_background_task=Mock(),
+            layout=SimpleNamespace(current_window=None, focus=Mock()),
+        )
+    )
+
+    invoke_binding(kb, Keys.Enter, event)
+    assert state.ui.add_user_visible is True
+
+    invoke_binding(overlay._key_bindings, Keys.Escape, event)
+    assert state.ui.add_user_visible is False

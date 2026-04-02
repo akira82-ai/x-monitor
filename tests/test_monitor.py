@@ -177,3 +177,18 @@ async def test_poll_once_reports_handle_progress():
     assert poll_result.handle_results[0].handle == "testuser"
     assert poll_result.handle_results[0].new_count == 1
     assert [event.outcome for event in events] == ["start", "success"]
+
+
+@pytest.mark.asyncio
+async def test_fetch_handle_now_updates_unread_badge_silently():
+    """Direct one-off fetches should update unread badge state without a noisy notification."""
+    monitor = Monitor(make_config(), AppState())
+    monitor.fetcher.fetch_tweets = AsyncMock(return_value=[make_tweet("99")])
+    monitor.instance_manager.record_success = AsyncMock()
+    monitor.notifier.notify_batch = Mock()
+
+    poll_result = await monitor.fetch_handle_now("testuser", notify=False)
+
+    assert poll_result.total_new == 1
+    monitor.notifier.notify_batch.assert_called_once_with(new_count=0, total_unread=1)
+    assert monitor.state.last_poll is not None

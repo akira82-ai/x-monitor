@@ -47,11 +47,13 @@ def create_key_bindings(
     state: AppState,
     monitor,
     search_overlay,
+    add_user_overlay,
     layout_factory: Callable[[AppState, Config], object],
 ) -> KeyBindings:
     """Create keyboard shortcuts for the three-column UI."""
     kb = KeyBindings()
     focusable_columns = ["users", "posts"]
+    main_filter = add_user_overlay.main_bindings_filter if add_user_overlay is not None else True
 
     def _cycle_focus(step: int) -> None:
         current_column = state.ui.focus_column
@@ -61,18 +63,18 @@ def create_key_bindings(
         current_index = focusable_columns.index(current_column)
         state.ui.focus_column = focusable_columns[(current_index + step) % len(focusable_columns)]
 
-    @kb.add("tab")
+    @kb.add("tab", filter=main_filter)
     def _(event):
         _cycle_focus(1)
         event.app.invalidate()
 
-    @kb.add("s-tab")
+    @kb.add("s-tab", filter=main_filter)
     def _(event):
         _cycle_focus(-1)
         event.app.invalidate()
 
-    @kb.add("j")
-    @kb.add("down")
+    @kb.add("j", filter=main_filter)
+    @kb.add("down", filter=main_filter)
     def _(event):
         if state.ui.focus_column == "users":
             state.select_next_user()
@@ -83,8 +85,8 @@ def create_key_bindings(
             _mark_selected_as_read(state, monitor)
         event.app.invalidate()
 
-    @kb.add("k")
-    @kb.add("up")
+    @kb.add("k", filter=main_filter)
+    @kb.add("up", filter=main_filter)
     def _(event):
         if state.ui.focus_column == "users":
             state.select_previous_user()
@@ -95,8 +97,8 @@ def create_key_bindings(
             _mark_selected_as_read(state, monitor)
         event.app.invalidate()
 
-    @kb.add("right")
-    @kb.add("pagedown")
+    @kb.add("right", filter=main_filter)
+    @kb.add("pagedown", filter=main_filter)
     def _(event):
         if state.ui.focus_column == "posts":
             state.next_page()
@@ -104,8 +106,8 @@ def create_key_bindings(
             _mark_selected_as_read(state, monitor)
             event.app.invalidate()
 
-    @kb.add("left")
-    @kb.add("pageup")
+    @kb.add("left", filter=main_filter)
+    @kb.add("pageup", filter=main_filter)
     def _(event):
         if state.ui.focus_column == "posts":
             state.prev_page()
@@ -113,12 +115,19 @@ def create_key_bindings(
             _mark_selected_as_read(state, monitor)
             event.app.invalidate()
 
-    @kb.add("q")
+    @kb.add("enter", filter=main_filter)
+    def _(event):
+        if state.ui.focus_column == "users" and state.ui.add_user_selected and add_user_overlay is not None:
+            add_user_overlay.open(event.app)
+            return
+        event.app.invalidate()
+
+    @kb.add("q", filter=main_filter)
     @kb.add("c-c")
     def _(event):
         event.app.exit()
 
-    @kb.add("o")
+    @kb.add("o", filter=main_filter)
     def _(event):
         import webbrowser
 
@@ -129,7 +138,7 @@ def create_key_bindings(
             _set_status(state, f"已打开: {url}")
         event.app.invalidate()
 
-    @kb.add("c")
+    @kb.add("c", filter=main_filter)
     def _(event):
         tweet = state.selected_tweet
         if tweet:
@@ -144,19 +153,19 @@ def create_key_bindings(
                 _set_status(state, f"复制失败: {str(exc)}")
         event.app.invalidate()
 
-    @kb.add("escape", "down")
+    @kb.add("escape", "down", filter=main_filter)
     def _(event):
         if state.selected_tweet:
             state.current_user_details_scroll_offset += 1
             event.app.invalidate()
 
-    @kb.add("escape", "up")
+    @kb.add("escape", "up", filter=main_filter)
     def _(event):
         if state.selected_tweet:
             state.current_user_details_scroll_offset = max(0, state.current_user_details_scroll_offset - 1)
             event.app.invalidate()
 
-    @kb.add("escape", "r")
+    @kb.add("escape", "r", filter=main_filter)
     def _(event):
         if monitor:
             state.mark_all_as_read()

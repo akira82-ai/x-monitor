@@ -1,8 +1,10 @@
 """Layout and styling helpers for the prompt-toolkit TUI."""
 
+from prompt_toolkit.filters import Condition
 from prompt_toolkit.formatted_text import FormattedText
 from prompt_toolkit.layout import HSplit, Layout, VSplit, Window
 from prompt_toolkit.layout import Dimension as D
+from prompt_toolkit.layout.containers import ConditionalContainer, Float, FloatContainer
 from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.styles import Style
 
@@ -24,6 +26,7 @@ def create_layout(
     state: AppState,
     config: Config,
     search_overlay=None,
+    add_user_overlay=None,
 ) -> Layout:
     """Create the three-column application layout."""
     state.set_monitored_handles(config.users.handles)
@@ -94,7 +97,7 @@ def create_layout(
     footer = Window(
         content=FormattedTextControl(
             lambda: (
-                "Tab左中切栏  ↑↓选择  ←→翻页  Alt+↑↓滚动详情  "
+                "Tab左中切栏  ↑↓选择  Enter添加  ←→翻页  Alt+↑↓滚动详情  "
                 "o打开URL  c复制  Esc+R全部已读  q退出"
             )
         ),
@@ -103,7 +106,25 @@ def create_layout(
         dont_extend_height=True,
     )
 
-    return Layout(HSplit([header, table_header, separator, content_area, footer]))
+    root = HSplit([header, table_header, separator, content_area, footer])
+
+    if add_user_overlay is not None:
+        root = FloatContainer(
+            content=root,
+            floats=[
+                Float(
+                    top=2,
+                    left=4,
+                    right=4,
+                    content=ConditionalContainer(
+                        content=add_user_overlay.container,
+                        filter=Condition(lambda: state.ui.add_user_visible),
+                    ),
+                )
+            ],
+        )
+
+    return Layout(root)
 
 
 def create_style() -> Style:
@@ -119,5 +140,10 @@ def create_style() -> Style:
             "vseparator": "fg:#444444",
             "details.title": "fg:#5F87AF bold",
             "details.label": "fg:#606060",
+            "add_user.frame": "fg:#DDDDDD bg:#202020",
+            "add_user.title": "fg:#5F87AF bold",
+            "add_user.help": "fg:#808080",
+            "add_user.input": "fg:#FFFFFF bg:#303030",
+            "add_user.error": "fg:#FF6B6B",
         }
     )

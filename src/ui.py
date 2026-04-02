@@ -7,7 +7,9 @@ from prompt_toolkit.application import Application
 from prompt_toolkit.layout import Layout
 
 from .config import Config
+from .subscription_actions import SubscriptionActions
 from .types import AppState
+from .ui_add_user import AddUserOverlay
 from .ui_keybindings import create_key_bindings
 from .ui_layout import create_layout as _build_layout
 from .ui_layout import create_style
@@ -15,18 +17,21 @@ from .ui_runtime import cancel_background_task, poll_tweets_background, update_u
 from .ui_status import get_status_text
 
 
-def create_layout(state: AppState, config: Config) -> Layout:
+def create_layout(state: AppState, config: Config, add_user_overlay=None) -> Layout:
     """Create the application layout."""
     return _build_layout(
         state=state,
         config=config,
+        add_user_overlay=add_user_overlay,
     )
 
 
 async def run_ui(config: Config, state: AppState, refresh_callback: Callable, monitor=None) -> None:
     """Run the TUI application."""
+    add_user_overlay = AddUserOverlay(SubscriptionActions(config, state, monitor))
+
     def layout_factory(current_state: AppState, current_config: Config) -> Layout:
-        return create_layout(current_state, current_config)
+        return create_layout(current_state, current_config, add_user_overlay=add_user_overlay)
 
     # Create application
     app = Application(
@@ -35,6 +40,7 @@ async def run_ui(config: Config, state: AppState, refresh_callback: Callable, mo
             state=state,
             monitor=monitor,
             search_overlay=None,
+            add_user_overlay=add_user_overlay,
             layout_factory=layout_factory,
         ),
         style=create_style(),

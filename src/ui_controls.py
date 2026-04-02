@@ -25,7 +25,10 @@ class UserListControl(UIControl):
         lines = []
         users = self.state.sorted_users
 
-        for index, handle in enumerate(users[:height]):
+        add_style = "class:selected" if self.state.ui.add_user_selected and self.state.ui.focus_column == "users" else ""
+        lines.append(FormattedText([(add_style, pad_column_text("+ Add user", width))]))
+
+        for index, handle in enumerate(users[: max(0, height - 1)]):
             unread = self.state.unread_count_for_user(handle)
             label = f"@{handle}({unread})" if unread > 0 else f"@{handle}"
             is_selected = index == self.state.ui.selected_user_index
@@ -38,7 +41,12 @@ class UserListControl(UIControl):
         return UIContent(
             get_line=lambda i: lines[i] if 0 <= i < len(lines) else FormattedText([("", "")]),
             line_count=len(lines),
-            cursor_position=Point(0, min(self.state.ui.selected_user_index, max(0, len(lines) - 1))),
+            cursor_position=Point(
+                0,
+                0
+                if self.state.ui.add_user_selected or not users
+                else min(self.state.ui.selected_user_index + 1, max(0, len(lines) - 1)),
+            ),
         )
 
     def is_focusable(self) -> bool:

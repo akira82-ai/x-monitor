@@ -382,6 +382,33 @@ class Monitor:
 
         return result
 
+    async def fetch_handle_now(self, handle: str, notify: bool = False, progress_callback=None) -> PollResult:
+        """Immediately fetch one handle using the same recovery chain as background polling."""
+        result = PollResult()
+        had_error = self.state.error_message is not None
+
+        await self._poll_handle(handle, result, progress_callback)
+        self._trim_and_sort_tweets()
+
+        if result.successful_handles > 0:
+            self.state.last_poll = datetime.now(timezone.utc)
+            if had_error:
+                logger.info("Connectivity recovered during direct fetch for %s", handle)
+            self.state.clear_error()
+
+        if notify and result.total_new > 0:
+            self.notifier.notify_batch(
+                new_count=result.total_new,
+                total_unread=self.state.new_tweets_count,
+            )
+        elif self.config.notification.title_badge:
+            self.notifier.notify_batch(
+                new_count=0,
+                total_unread=self.state.new_tweets_count,
+            )
+
+        return result
+
     async def _run_loop(self, on_update: Callable[[], None]) -> None:
         """Run the monitoring loop."""
         self._running = True

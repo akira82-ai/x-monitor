@@ -77,6 +77,7 @@ class Config:
     users: UsersConfig = field(default_factory=UsersConfig)
     notification: NotificationConfig = field(default_factory=NotificationConfig)
     ui: UiConfig = field(default_factory=UiConfig)
+    source_path: Optional[str] = None
 
     @staticmethod
     def get_config_paths() -> List[Path]:
@@ -114,6 +115,7 @@ class Config:
             users=UsersConfig(**data.get("users", {"handles": []})),
             notification=NotificationConfig(**data.get("notification", {})),
             ui=UiConfig(**data.get("ui", {})),
+            source_path=str(config_path),
         )
 
         config.validate()
@@ -154,3 +156,8 @@ class Config:
                 "auto_scroll": self.ui.auto_scroll,
             },
         }))
+        self.source_path = path
+
+    def get_save_path(self) -> str:
+        """Return the current config save path, defaulting to the local project file."""
+        return self.source_path or "config.toml"

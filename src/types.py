@@ -118,6 +118,8 @@ class UiState:
     monitored_handles: List[str] = field(default_factory=list)
     selected_user_index: int = 0
     focus_column: str = "users"
+    add_user_selected: bool = False
+    add_user_visible: bool = False
     per_user_selected_post_index: dict = field(default_factory=dict)
     per_user_current_page: dict = field(default_factory=dict)
     per_user_details_scroll_offset: dict = field(default_factory=dict)
@@ -510,6 +512,7 @@ class AppState:
         users = self.sorted_users
         if not users:
             self.ui.selected_user_index = 0
+            self.ui.add_user_selected = True
             return
         self.ui.selected_user_index = max(0, min(self.ui.selected_user_index, len(users) - 1))
 
@@ -630,6 +633,11 @@ class AppState:
         users = self.sorted_users
         if not users:
             return
+        if self.ui.add_user_selected:
+            self.ui.add_user_selected = False
+            self._clamp_current_user_page()
+            self._clamp_selected_post_index()
+            return
         if self.ui.selected_user_index < len(users) - 1:
             self.ui.selected_user_index += 1
         self._clamp_current_user_page()
@@ -637,8 +645,26 @@ class AppState:
 
     def select_previous_user(self) -> None:
         """Select the previous user in the left navigation."""
+        users = self.sorted_users
+        if not users:
+            self.ui.add_user_selected = True
+            return
+        if self.ui.add_user_selected:
+            return
         if self.ui.selected_user_index > 0:
             self.ui.selected_user_index -= 1
+        else:
+            self.ui.add_user_selected = True
+        self._clamp_current_user_page()
+        self._clamp_selected_post_index()
+
+    def select_user(self, handle: str) -> None:
+        """Select one monitored user by handle."""
+        users = self.sorted_users
+        if handle not in users:
+            return
+        self.ui.add_user_selected = False
+        self.ui.selected_user_index = users.index(handle)
         self._clamp_current_user_page()
         self._clamp_selected_post_index()
 
@@ -744,6 +770,8 @@ class AppState:
         self.tweets.clear()
         self.known_ids.clear()
         self.ui.selected_user_index = 0
+        self.ui.add_user_selected = False
+        self.ui.add_user_visible = False
         self.ui.per_user_selected_post_index.clear()
         self.ui.per_user_current_page.clear()
         self.ui.per_user_details_scroll_offset.clear()
@@ -765,6 +793,7 @@ class AppState:
             "new_tweets_count": self.new_tweets_count,
             "selected_user_index": self.ui.selected_user_index,
             "focus_column": self.ui.focus_column,
+            "add_user_selected": self.ui.add_user_selected,
             "per_user_selected_post_index": self.ui.per_user_selected_post_index,
             "per_user_current_page": self.ui.per_user_current_page,
             "per_user_details_scroll_offset": self.ui.per_user_details_scroll_offset,
@@ -784,6 +813,7 @@ class AppState:
             paused=data.get("paused", False),
             selected_user_index=data.get("selected_user_index", 0),
             focus_column=data.get("focus_column", "users"),
+            add_user_selected=data.get("add_user_selected", False),
             per_user_selected_post_index=data.get("per_user_selected_post_index", {}),
             per_user_current_page=data.get("per_user_current_page", {}),
             per_user_details_scroll_offset=data.get("per_user_details_scroll_offset", {}),
