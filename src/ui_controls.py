@@ -5,6 +5,7 @@ from prompt_toolkit.layout.controls import UIContent, UIControl
 from prompt_toolkit.layout.screen import Point
 from prompt_toolkit.utils import get_cwidth as _pt_cwidth
 
+from .time_utils import format_local_datetime
 from .types import AppState
 
 
@@ -133,7 +134,7 @@ class TweetDetailsControl(UIControl):
                 lines.append(FormattedText([("class:details.label", " ".join(badges))]))
                 lines.append(FormattedText([("", "")]))
 
-            local_time = tweet.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+            local_time = format_local_datetime(tweet.timestamp)
             lines.append(
                 FormattedText(
                     [

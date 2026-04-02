@@ -6,3 +6,4 @@ state.json
 state.incremental.json
 .firecrawl/
 CLAUDE.md
+x-monitor.log

@@ -12,6 +12,23 @@ NOW = datetime.now(timezone.utc)
 class TestTweet:
     """Test Tweet serialization."""
 
+    def test_format_timestamp_uses_local_date(self):
+        """Compact tweet dates should reflect the local timezone date."""
+        tweet = Tweet(
+            id="123456",
+            author="testuser",
+            author_name="TESTUSER",
+            content="Test tweet content",
+            timestamp=datetime(2026, 4, 2, 23, 39, 6, tzinfo=timezone.utc),
+            url="https://twitter.com/testuser/status/123456",
+            is_retweet=False,
+            is_reply=False,
+        )
+
+        local_time = tweet.timestamp.astimezone()
+
+        assert tweet.format_timestamp() == f"{local_time.month:02d}-{local_time.day:02d}"
+
     def test_to_dict(self):
         """Test Tweet serialization to dictionary."""
         tweet = Tweet(

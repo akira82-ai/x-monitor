@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, List
 
+from .time_utils import format_local_month_day
+
 
 @dataclass
 class Tweet:
@@ -24,7 +26,7 @@ class Tweet:
 
     def format_timestamp(self) -> str:
         """Get a formatted timestamp string (date only)."""
-        return self.timestamp.strftime("%m-%d")
+        return format_local_month_day(self.timestamp)
 
     def preview(self, max_chars: int = 20) -> str:
         """Get a truncated version of the content."""

@@ -6,13 +6,14 @@ from typing import Callable
 from prompt_toolkit.key_binding import KeyBindings
 
 from .config import Config
+from .time_utils import format_local_datetime
 from .types import AppState, Tweet
 
 
 def format_tweet_as_markdown(tweet: Tweet) -> str:
     """Format tweet as Markdown for clipboard."""
     url = f"https://x.com/{tweet.author}/status/{tweet.id}"
-    timestamp = tweet.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+    timestamp = format_local_datetime(tweet.timestamp)
 
     badges = []
     if tweet.is_retweet:

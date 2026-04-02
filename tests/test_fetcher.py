@@ -12,6 +12,7 @@ import pytest
 
 from src.fetcher import RSSParseError, TweetFetcher
 from src.types import Tweet
+from src.ui_keybindings import format_tweet_as_markdown
 
 
 def make_response(status_code: int = 200, text: str = "") -> httpx.Response:
@@ -111,3 +112,24 @@ def test_parse_rss_skips_malformed_entries(monkeypatch):
     tweets = fetcher._parse_rss("unused", "test")
 
     assert tweets == [good_tweet]
+
+
+def test_format_tweet_as_markdown_uses_local_time():
+    """Clipboard markdown should use the same local timestamp format as the details view."""
+    tweet = Tweet(
+        id="123",
+        author="tester",
+        author_name="TESTER",
+        content="hello",
+        timestamp=datetime(2026, 4, 2, 4, 39, 6, tzinfo=timezone.utc),
+        url="https://x.com/tester/status/123",
+    )
+
+    markdown = format_tweet_as_markdown(tweet)
+    local_time = tweet.timestamp.astimezone()
+    expected_timestamp = (
+        f"{local_time.year}-{local_time.month}-{local_time.day} "
+        f"{local_time.hour:02d}:{local_time.minute:02d}:{local_time.second:02d}"
+    )
+
+    assert expected_timestamp in markdown
