@@ -1,11 +1,17 @@
 """Tests for TweetFetcher network recovery behavior."""
 
+import time
+from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
+from unittest.mock import Mock
 
+import feedparser
 import httpx
 import pytest
 
 from src.fetcher import RSSParseError, TweetFetcher
+from src.types import Tweet
 
 
 def make_response(status_code: int = 200, text: str = "") -> httpx.Response:
@@ -63,3 +69,45 @@ async def test_rebuild_client_replaces_old_client():
     assert fetcher.client is not old_client
     assert old_client.is_closed is True
     await fetcher.close()
+
+
+def test_parse_entry_detects_reply_from_content_pattern():
+    """Entries that start with multiple mentions should be recognized as replies."""
+    fetcher = TweetFetcher("https://nitter.net")
+    entry = feedparser.FeedParserDict(
+        {
+            "guid": "https://x.com/test/status/123",
+            "link": "https://x.com/test/status/123",
+            "description": "<p>@alice @bob hello there</p>",
+            "published_parsed": time.gmtime(1700000000),
+        }
+    )
+
+    tweet = fetcher._parse_entry(entry, "test")
+
+    assert tweet.id == "123"
+    assert tweet.is_reply is True
+    assert tweet.is_retweet is False
+    assert tweet.content == "@alice @bob hello there"
+
+
+def test_parse_rss_skips_malformed_entries(monkeypatch):
+    """Malformed entries should be skipped while valid ones are still returned."""
+    fetcher = TweetFetcher("https://nitter.net")
+    good_tweet = Tweet(
+        id="1",
+        author="test",
+        author_name="TEST",
+        content="hello",
+        timestamp=datetime.now(timezone.utc),
+        url="https://x.com/test/status/1",
+    )
+    monkeypatch.setattr(
+        "src.fetcher.feedparser.parse",
+        lambda _content: SimpleNamespace(bozo=False, bozo_exception=None, entries=["good", "bad"]),
+    )
+    fetcher._parse_entry = Mock(side_effect=[good_tweet, ValueError("broken entry")])
+
+    tweets = fetcher._parse_rss("unused", "test")
+
+    assert tweets == [good_tweet]

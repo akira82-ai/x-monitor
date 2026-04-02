@@ -58,21 +58,32 @@ class TweetFetcher:
 
     async def fetch_tweets(self, handle: str) -> List[Tweet]:
         """Fetch tweets for a specific user via RSS."""
-        rss_url = f"{self.nitter_instance}/{handle}/rss"
+        rss_url = self._build_rss_url(handle)
         response = await self.client.get(rss_url)
         response.raise_for_status()
 
-        content_size = len(response.content)
-        if content_size > self.MAX_RSS_SIZE:
-            logger.warning(
-                "RSS feed too large for %s: %s bytes (max: %s bytes)",
-                handle,
-                content_size,
-                self.MAX_RSS_SIZE,
-            )
+        if not self._is_response_size_allowed(handle, response.content):
             return []
 
         return self._parse_rss(response.text, handle)
+
+    def _build_rss_url(self, handle: str) -> str:
+        """Build the RSS URL for a monitored handle."""
+        return f"{self.nitter_instance}/{handle}/rss"
+
+    def _is_response_size_allowed(self, handle: str, content: bytes) -> bool:
+        """Check the RSS payload size and log when it exceeds the safety cap."""
+        content_size = len(content)
+        if content_size <= self.MAX_RSS_SIZE:
+            return True
+
+        logger.warning(
+            "RSS feed too large for %s: %s bytes (max: %s bytes)",
+            handle,
+            content_size,
+            self.MAX_RSS_SIZE,
+        )
+        return False
 
     def _parse_rss(self, content: str, handle: str) -> List[Tweet]:
         """Parse RSS feed content into tweets."""
@@ -84,53 +95,58 @@ class TweetFetcher:
         tweets = []
         for entry in feed.entries:
             try:
-                # Extract tweet ID from GUID or link
-                tweet_id = entry.get("guid", entry.get("link", ""))
-                if "/" in tweet_id:
-                    tweet_id = tweet_id.split("/")[-1]
-                if not tweet_id or tweet_id.startswith("http"):
-                    # Generate hash ID if no proper ID found
-                    tweet_id = hashlib.md5(
-                        entry.get("link", "").encode()
-                    ).hexdigest()
-
-                # Parse timestamp
-                timestamp = datetime.now(timezone.utc)
-                if "published" in entry and entry.published_parsed:
-                    timestamp = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
-                elif "updated" in entry and entry.updated_parsed:
-                    timestamp = datetime(*entry.updated_parsed[:6], tzinfo=timezone.utc)
-
-                # Get URL
-                url = entry.get("link", f"https://twitter.com/{handle}/status/{tweet_id}")
-
-                # Extract content from description
-                content = entry.get("description", "")
-                # Strip HTML tags
-                content = self._strip_html(content)
-
-                # Check if retweet
-                is_retweet = "RT @" in content or content.startswith("RT @")
-                # Check if reply
-                is_reply = self._is_reply(entry)
-
-                tweet = Tweet(
-                    id=tweet_id,
-                    author=handle,
-                    author_name=handle.upper(),
-                    content=content.strip(),
-                    timestamp=timestamp,
-                    url=url,
-                    is_retweet=is_retweet,
-                    is_reply=is_reply,
-                )
-                tweets.append(tweet)
-
+                tweets.append(self._parse_entry(entry, handle))
             except Exception as e:
                 logger.warning("Skipping malformed RSS entry for %s: %s", handle, e)
                 continue
 
         return tweets
+
+    def _parse_entry(self, entry, handle: str) -> Tweet:
+        """Convert one RSS entry into a Tweet domain object."""
+        content = self._extract_content(entry)
+
+        return Tweet(
+            id=self._extract_tweet_id(entry),
+            author=handle,
+            author_name=handle.upper(),
+            content=content.strip(),
+            timestamp=self._extract_timestamp(entry),
+            url=self._extract_url(entry, handle),
+            is_retweet=self._is_retweet_content(content),
+            is_reply=self._is_reply(entry),
+        )
+
+    def _extract_tweet_id(self, entry) -> str:
+        """Extract or synthesize a stable tweet identifier from an RSS entry."""
+        tweet_id = entry.get("guid", entry.get("link", ""))
+        if "/" in tweet_id:
+            tweet_id = tweet_id.split("/")[-1]
+        if not tweet_id or tweet_id.startswith("http"):
+            tweet_id = hashlib.md5(entry.get("link", "").encode()).hexdigest()
+        return tweet_id
+
+    def _extract_timestamp(self, entry) -> datetime:
+        """Extract the entry timestamp, falling back to 'now' when absent."""
+        if "published" in entry and entry.published_parsed:
+            return datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
+        if "updated" in entry and entry.updated_parsed:
+            return datetime(*entry.updated_parsed[:6], tzinfo=timezone.utc)
+        return datetime.now(timezone.utc)
+
+    def _extract_url(self, entry, handle: str) -> str:
+        """Extract the canonical tweet URL from an entry."""
+        tweet_id = self._extract_tweet_id(entry)
+        return entry.get("link", f"https://twitter.com/{handle}/status/{tweet_id}")
+
+    def _extract_content(self, entry) -> str:
+        """Extract plain text content from an RSS entry."""
+        return self._strip_html(entry.get("description", ""))
+
+    @staticmethod
+    def _is_retweet_content(content: str) -> bool:
+        """Check whether plain text entry content represents a retweet."""
+        return "RT @" in content or content.startswith("RT @")
 
     @staticmethod
     def _strip_html(html: str) -> str:

@@ -76,20 +76,10 @@ class StateManager:
         Args:
             state: AppState to save
         """
-        # Limit tweet count (only trim tweets list, don't affect known_ids)
-        if len(state.tweets) > self.max_tweets:
-            state.tweets = state.tweets[:self.max_tweets]
-            # Don't rebuild known_ids, keep trimmed tweet IDs
-            # This allows these tweets to reappear in future polls
-            # Recalculate counter to ensure consistency with actual is_new flags
-            state.recalculate_new_count()
-
         try:
-            # Serialize and save (using atomic write)
-            data = state.to_dict()
-            atomic_write(self.state_path, json.dumps(data, indent=2, ensure_ascii=False))
+            self._trim_tweets(state)
+            atomic_write(self.state_path, self._serialize_state(state))
         except (OSError, IOError) as e:
-            # Log save failure
             logger.warning(f"Failed to save state to {self.state_path}: {e}")
 
     def clear(self) -> None:
@@ -115,23 +105,35 @@ class StateManager:
             return None
 
         try:
-            data = json.loads(self.state_path.read_text())
-            state = AppState.from_dict(data)
+            state = self._deserialize_state(self.state_path.read_text())
         except (json.JSONDecodeError, KeyError, ValueError) as e:
             logger.warning(f"Failed to load state file: {e}")
             return None
 
-        # Limit tweet count (only trim tweets list, don't affect known_ids)
-        if len(state.tweets) > self.max_tweets:
-            state.tweets = state.tweets[:self.max_tweets]
+        self._prepare_loaded_state(state)
+        return state
 
-        # Clean up old tweets' new flags (tweets older than 7 days shouldn't be marked as new)
-        self._cleanup_old_new_tweets(state)
+    def _serialize_state(self, state: AppState) -> str:
+        """Serialize state to a JSON payload for persistence."""
+        return json.dumps(state.to_dict(), indent=2, ensure_ascii=False)
 
-        # Recalculate to ensure new_tweets_count matches actual is_new flags
+    def _deserialize_state(self, raw_content: str) -> AppState:
+        """Deserialize state content from JSON."""
+        return AppState.from_dict(json.loads(raw_content))
+
+    def _trim_tweets(self, state: AppState) -> None:
+        """Bound the in-memory timeline size before persistence or after load."""
+        if len(state.tweets) <= self.max_tweets:
+            return
+
+        state.tweets = state.tweets[:self.max_tweets]
         state.recalculate_new_count()
 
-        return state
+    def _prepare_loaded_state(self, state: AppState) -> None:
+        """Normalize a loaded state before it is handed back to the app."""
+        self._trim_tweets(state)
+        self._cleanup_old_new_tweets(state)
+        state.recalculate_new_count()
 
     def _cleanup_old_new_tweets(self, state: AppState) -> None:
         """Clean up new flags from old tweets.

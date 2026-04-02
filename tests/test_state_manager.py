@@ -138,6 +138,17 @@ class TestStateManager:
             state = manager.load()
             assert state is None
 
+    def test_load_invalid_json_returns_none(self):
+        """Corrupt state files should be ignored safely."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = StateManager()
+            manager.state_path = Path(tmpdir) / "state.json"
+            manager.state_path.write_text("{invalid json")
+
+            state = manager.load()
+
+            assert state is None
+
     def test_load_clears_new_flag_for_expired_tweets(self):
         """Test tweets older than the expiry window are no longer marked new."""
         with tempfile.TemporaryDirectory() as tmpdir:

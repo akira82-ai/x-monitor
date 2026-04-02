@@ -92,6 +92,26 @@ class Monitor:
         """Set a persistent error message until a successful poll clears it."""
         self.state.set_error(message, datetime.now(timezone.utc))
 
+    def _emit_progress(
+        self,
+        progress_callback,
+        handle_result: HandlePollResult,
+    ) -> None:
+        """Forward a structured progress event when a caller is observing polling."""
+        if progress_callback:
+            progress_callback(handle_result)
+
+    def _append_handle_result(
+        self,
+        result: PollResult,
+        progress_callback,
+        handle_result: HandlePollResult,
+    ) -> HandlePollResult:
+        """Record and publish a per-handle polling result."""
+        result.handle_results.append(handle_result)
+        self._emit_progress(progress_callback, handle_result)
+        return handle_result
+
     def _mark_successful_poll(self, total_new: int, successful_handles: int, had_error: bool, switched_instance: bool) -> None:
         """Update success state after at least one handle was fetched successfully."""
         self.state.last_poll = datetime.now(timezone.utc)
@@ -190,6 +210,143 @@ class Monitor:
         self._set_error_message(f"RSS 解析失败: @{handle}")
         return HandlePollResult(handle=handle, outcome="failure", message=str(error))
 
+    def _filter_fetched_tweets(self, tweets):
+        """Apply fetch-time content filters before tweets hit application state."""
+        if not self.config.general.filter_replies:
+            return tweets
+        return [tweet for tweet in tweets if not tweet.is_reply]
+
+    def _ingest_tweets(self, tweets) -> int:
+        """Add fetched tweets into state and return the number that were newly seen."""
+        new_count = 0
+        for tweet in tweets:
+            if self.state.add_tweet(tweet):
+                new_count += 1
+        return new_count
+
+    async def _handle_successful_fetch(
+        self,
+        handle: str,
+        tweets,
+        result: PollResult,
+        progress_callback,
+    ) -> None:
+        """Record a successful fetch for one handle."""
+        await self._resolve_maybe_async(self.instance_manager.record_success())
+        result.successful_handles += 1
+
+        filtered_tweets = self._filter_fetched_tweets(tweets)
+        new_count = self._ingest_tweets(filtered_tweets)
+        result.total_new += new_count
+
+        self._append_handle_result(
+            result,
+            progress_callback,
+            HandlePollResult(
+                handle=handle,
+                outcome="success",
+                message=f"{len(filtered_tweets)} 条推文" if filtered_tweets else "无推文",
+                tweet_count=len(filtered_tweets),
+                new_count=new_count,
+            ),
+        )
+
+    def _record_handle_failure(
+        self,
+        result: PollResult,
+        progress_callback,
+        handle: str,
+        message: str,
+    ) -> None:
+        """Record a terminal failure outcome for one handle."""
+        result.failed_handles += 1
+        self._append_handle_result(
+            result,
+            progress_callback,
+            HandlePollResult(
+                handle=handle,
+                outcome="failure",
+                message=message,
+            ),
+        )
+
+    async def _handle_fetch_exception(
+        self,
+        handle: str,
+        error: Exception,
+        retry_count: int,
+        max_retries: int,
+        result: PollResult,
+        progress_callback,
+    ) -> bool:
+        """Handle one fetch exception and return whether the handle should retry."""
+        if isinstance(error, httpx.HTTPStatusError) and not self._is_retryable_http_error(error):
+            self._set_error_message(f"HTTP 错误: @{handle} ({error.response.status_code})")
+            self._record_handle_failure(result, progress_callback, handle, str(error))
+            return False
+
+        if isinstance(error, (httpx.TimeoutException, httpx.HTTPStatusError, httpx.RequestError)):
+            result.failed_handles += 1
+            should_retry, did_switch = await self._handle_transport_error(
+                handle=handle,
+                error=error,
+                retry_count=retry_count,
+                max_retries=max_retries,
+            )
+            result.switched_instance = result.switched_instance or did_switch
+            if should_retry:
+                return True
+            self._append_handle_result(
+                result,
+                progress_callback,
+                HandlePollResult(handle=handle, outcome="failure", message=str(error)),
+            )
+            return False
+
+        if isinstance(error, RSSParseError):
+            result.failed_handles += 1
+            handle_result = self._handle_parse_error(handle, error)
+            self._append_handle_result(result, progress_callback, handle_result)
+            return False
+
+        if isinstance(error, (OSError, IOError)):
+            logger.error("File system error for %s: %s", handle, error)
+            self._set_error_message(f"文件系统错误: @{handle}")
+            self._record_handle_failure(result, progress_callback, handle, str(error))
+            return False
+
+        logger.exception("Unexpected error fetching %s", handle)
+        self._set_error_message(f"本轮拉取失败: @{handle}")
+        self._record_handle_failure(result, progress_callback, handle, str(error))
+        return False
+
+    async def _poll_handle(self, handle: str, result: PollResult, progress_callback) -> None:
+        """Poll a single handle, including one retry for retryable transport failures."""
+        retry_count = 0
+        max_retries = 1
+
+        while retry_count <= max_retries:
+            self._emit_progress(
+                progress_callback,
+                HandlePollResult(handle=handle, outcome="start", message="获取中..."),
+            )
+            try:
+                tweets = await self.fetcher.fetch_tweets(handle)
+                await self._handle_successful_fetch(handle, tweets, result, progress_callback)
+                return
+            except Exception as error:
+                should_retry = await self._handle_fetch_exception(
+                    handle=handle,
+                    error=error,
+                    retry_count=retry_count,
+                    max_retries=max_retries,
+                    result=result,
+                    progress_callback=progress_callback,
+                )
+                if not should_retry:
+                    return
+                retry_count += 1
+
     @property
     def is_running(self) -> bool:
         """Check if the monitor is running."""
@@ -201,117 +358,7 @@ class Monitor:
         had_error = self.state.error_message is not None
 
         for handle in self.config.users.handles:
-            retry_count = 0
-            max_retries = 1
-
-            while retry_count <= max_retries:
-                try:
-                    if progress_callback:
-                        progress_callback(
-                            HandlePollResult(
-                                handle=handle,
-                                outcome="start",
-                                message="获取中...",
-                            )
-                        )
-
-                    tweets = await self.fetcher.fetch_tweets(handle)
-                    await self._resolve_maybe_async(self.instance_manager.record_success())
-                    result.successful_handles += 1
-
-                    if self.config.general.filter_replies:
-                        tweets = [t for t in tweets if not t.is_reply]
-
-                    new_count = 0
-                    for tweet in tweets:
-                        if self.state.add_tweet(tweet):
-                            result.total_new += 1
-                            new_count += 1
-
-                    handle_result = HandlePollResult(
-                        handle=handle,
-                        outcome="success",
-                        message=f"{len(tweets)} 条推文" if tweets else "无推文",
-                        tweet_count=len(tweets),
-                        new_count=new_count,
-                    )
-                    result.handle_results.append(handle_result)
-
-                    if progress_callback:
-                        progress_callback(handle_result)
-
-                    break
-
-                except (httpx.TimeoutException, httpx.HTTPStatusError, httpx.RequestError) as e:
-                    if isinstance(e, httpx.HTTPStatusError) and not self._is_retryable_http_error(e):
-                        result.failed_handles += 1
-                        self._set_error_message(f"HTTP 错误: @{handle} ({e.response.status_code})")
-                        handle_result = HandlePollResult(
-                            handle=handle,
-                            outcome="failure",
-                            message=str(e),
-                        )
-                        result.handle_results.append(handle_result)
-                        if progress_callback:
-                            progress_callback(handle_result)
-                        break
-
-                    result.failed_handles += 1
-                    should_retry, did_switch = await self._handle_transport_error(
-                        handle=handle,
-                        error=e,
-                        retry_count=retry_count,
-                        max_retries=max_retries,
-                    )
-                    result.switched_instance = result.switched_instance or did_switch
-                    if should_retry:
-                        retry_count += 1
-                        continue
-                    handle_result = HandlePollResult(
-                        handle=handle,
-                        outcome="failure",
-                        message=str(e),
-                    )
-                    result.handle_results.append(handle_result)
-                    if progress_callback:
-                        progress_callback(handle_result)
-                    break
-
-                except RSSParseError as e:
-                    result.failed_handles += 1
-                    handle_result = self._handle_parse_error(handle, e)
-                    result.handle_results.append(handle_result)
-                    if progress_callback:
-                        progress_callback(handle_result)
-                    break
-
-                except (OSError, IOError) as e:
-                    result.failed_handles += 1
-                    logger.error("File system error for %s: %s", handle, e)
-                    self._set_error_message(f"文件系统错误: @{handle}")
-                    handle_result = HandlePollResult(
-                        handle=handle,
-                        outcome="failure",
-                        message=str(e),
-                    )
-                    result.handle_results.append(handle_result)
-                    if progress_callback:
-                        progress_callback(handle_result)
-                    break
-
-                except Exception as e:
-                    result.failed_handles += 1
-                    logger.exception("Unexpected error fetching %s", handle)
-                    self._set_error_message(f"本轮拉取失败: @{handle}")
-                    handle_result = HandlePollResult(
-                        handle=handle,
-                        outcome="failure",
-                        message=str(e),
-                    )
-                    result.handle_results.append(handle_result)
-                    if progress_callback:
-                        progress_callback(handle_result)
-                    break
+            await self._poll_handle(handle, result, progress_callback)
 
         self._trim_and_sort_tweets()
 
