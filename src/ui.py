@@ -12,27 +12,21 @@ from .ui_keybindings import create_key_bindings
 from .ui_layout import create_layout as _build_layout
 from .ui_layout import create_style
 from .ui_runtime import cancel_background_task, poll_tweets_background, update_ui_background
-from .ui_search import SearchOverlay
 from .ui_status import get_status_text
 
 
-def create_layout(state: AppState, config: Config, search_overlay: SearchOverlay) -> Layout:
+def create_layout(state: AppState, config: Config) -> Layout:
     """Create the application layout."""
     return _build_layout(
         state=state,
         config=config,
-        search_overlay=search_overlay,
     )
 
 
 async def run_ui(config: Config, state: AppState, refresh_callback: Callable, monitor=None) -> None:
     """Run the TUI application."""
-    search_overlay = None
-
     def layout_factory(current_state: AppState, current_config: Config) -> Layout:
-        return create_layout(current_state, current_config, search_overlay)
-
-    search_overlay = SearchOverlay(layout_factory=layout_factory)
+        return create_layout(current_state, current_config)
 
     # Create application
     app = Application(
@@ -40,7 +34,7 @@ async def run_ui(config: Config, state: AppState, refresh_callback: Callable, mo
         key_bindings=create_key_bindings(
             state=state,
             monitor=monitor,
-            search_overlay=search_overlay,
+            search_overlay=None,
             layout_factory=layout_factory,
         ),
         style=create_style(),

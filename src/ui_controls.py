@@ -1,4 +1,4 @@
-"""Prompt-toolkit UI controls for the tweet list and details pane."""
+"""Prompt-toolkit UI controls for the three-column TUI."""
 
 from prompt_toolkit.formatted_text import FormattedText
 from prompt_toolkit.layout.controls import UIContent, UIControl
@@ -7,6 +7,7 @@ from prompt_toolkit.utils import get_cwidth as _pt_cwidth
 
 from .time_utils import format_local_datetime
 from .types import AppState
+from .ui_columns import COLUMN_PADDING, pad_column_text
 
 
 def _w(text: str) -> int:
@@ -14,81 +15,22 @@ def _w(text: str) -> int:
     return _pt_cwidth(text)
 
 
-class TweetTableControl(UIControl):
-    """Custom control for displaying tweet table."""
+class UserListControl(UIControl):
+    """Display monitored users and unread counts."""
 
     def __init__(self, state: AppState):
         self.state = state
 
     def create_content(self, width: int, height: int) -> UIContent:
-        """Generate table content for display."""
         lines = []
+        users = self.state.sorted_users
 
-        self.state.update_page_size(height)
-        visible_tweets_all = self.state.tweets
-
-        user_width = 16
-        date_width = 9
-        separator_width = 3
-        fixed_width = user_width + date_width + separator_width + 2
-        content_width = max(width - fixed_width, 20)
-
-        total_filtered = len(visible_tweets_all)
-        start_idx = self.state.current_page * self.state.page_size
-        end_idx = min(start_idx + self.state.page_size, total_filtered)
-        visible_tweets = visible_tweets_all[start_idx:end_idx]
-
-        for i, tweet in enumerate(visible_tweets):
-            absolute_index = start_idx + i
-
-            prefix = ""
-            if tweet.is_new:
-                prefix = "🔔 "
-            elif tweet.is_retweet:
-                prefix = "🔁 "
-            prefix_display_width = _w(prefix) if prefix else 0
-            available_content_width = content_width - prefix_display_width
-
-            tweet_preview = tweet.preview(available_content_width)
-            preview_display_width = _w(tweet_preview)
-
-            content_padding = content_width - prefix_display_width - preview_display_width
-            if content_padding < 0:
-                content_padding = 0
-
-            user_col = f"@{tweet.author}"
-            user_col_width = _w(user_col)
-            user_padding = user_width - user_col_width
-            if user_padding < 0:
-                user_padding = 0
-
-            content_col = f"{prefix}{tweet_preview}{' ' * content_padding}"
-
-            date_col = tweet.format_timestamp()
-            date_col_width = _w(date_col)
-            date_padding = date_width - date_col_width
-            if date_padding < 0:
-                date_padding = 0
-
-            separator_col = " │"
-            is_selected = absolute_index == self.state.selected_index
-            if is_selected:
-                row_text = (
-                    f"{user_col}{' ' * user_padding} {content_col} "
-                    f"{date_col}{' ' * date_padding}{separator_col}"
-                )
-                lines.append(FormattedText([("class:selected", row_text)]))
-            else:
-                lines.append(
-                    FormattedText(
-                        [
-                            ("class:author", f"{user_col}{' ' * user_padding}"),
-                            ("", f" {content_col} "),
-                            ("class:date", f"{date_col}{' ' * date_padding}"),
-                            ("class:vseparator", separator_col),
-                        ]
-                    )
-                )
+        for index, handle in enumerate(users[:height]):
+            unread = self.state.unread_count_for_user(handle)
+            label = f"@{handle}({unread})" if unread > 0 else f"@{handle}"
+            is_selected = index == self.state.ui.selected_user_index
+            style = "class:selected" if is_selected and self.state.ui.focus_column == "users" else ""
+            lines.append(FormattedText([(style, pad_column_text(label, width))]))
 
         while len(lines) < height:
             lines.append(FormattedText([("", "")]))
@@ -96,16 +38,60 @@ class TweetTableControl(UIControl):
         return UIContent(
             get_line=lambda i: lines[i] if 0 <= i < len(lines) else FormattedText([("", "")]),
             line_count=len(lines),
-            cursor_position=Point(0, max(0, self.state.selected_index - start_idx)),
+            cursor_position=Point(0, min(self.state.ui.selected_user_index, max(0, len(lines) - 1))),
         )
 
     def is_focusable(self) -> bool:
-        """This control can receive focus."""
         return True
 
-    def get_key_bindings(self):
-        """No specific key bindings for this control."""
-        return None
+
+class TweetTableControl(UIControl):
+    """Display posts for the currently selected user."""
+
+    def __init__(self, state: AppState):
+        self.state = state
+
+    def create_content(self, width: int, height: int) -> UIContent:
+        lines = []
+        self.state.update_page_size(height)
+
+        tweets = self.state.current_user_tweets
+        date_width = 5
+        fixed_width = date_width + 1 + (COLUMN_PADDING * 2)
+        preview_width = max(width - fixed_width, 10)
+
+        start_idx = self.state.current_user_page * self.state.page_size
+        end_idx = min(start_idx + self.state.page_size, len(tweets))
+        visible_tweets = tweets[start_idx:end_idx]
+
+        for i, tweet in enumerate(visible_tweets):
+            absolute_index = start_idx + i
+            preview = tweet.preview(preview_width)
+            preview_padding = max(0, preview_width - _w(preview))
+            date_text = tweet.format_timestamp()
+            row_text = (
+                f"{' ' * COLUMN_PADDING}"
+                f"{preview}{' ' * preview_padding} {date_text}"
+                f"{' ' * COLUMN_PADDING}"
+            )
+            is_selected = absolute_index == self.state.current_post_index
+            style = "class:selected" if is_selected and self.state.ui.focus_column == "posts" else ""
+            lines.append(FormattedText([(style, row_text)]))
+
+        if not visible_tweets:
+            lines.append(FormattedText([("", pad_column_text("没有帖子", width))]))
+
+        while len(lines) < height:
+            lines.append(FormattedText([("", "")]))
+
+        return UIContent(
+            get_line=lambda i: lines[i] if 0 <= i < len(lines) else FormattedText([("", "")]),
+            line_count=len(lines),
+            cursor_position=Point(0, max(0, self.state.current_post_index - start_idx)),
+        )
+
+    def is_focusable(self) -> bool:
+        return True
 
 
 class TweetDetailsControl(UIControl):
@@ -115,14 +101,15 @@ class TweetDetailsControl(UIControl):
         self.state = state
 
     def create_content(self, width: int, height: int) -> UIContent:
-        """Generate details content."""
         lines = []
-
         tweet = self.state.selected_tweet
+
         if not tweet:
-            lines.append(FormattedText([("", "没有选中的推文")]))
+            lines.append(FormattedText([("", pad_column_text("没有选中的推文", width))]))
         else:
-            lines.append(FormattedText([("class:details.title", f"@{tweet.author}")]))
+            detail_width = max(10, width - (COLUMN_PADDING * 2))
+            left_pad = " " * COLUMN_PADDING
+            lines.append(FormattedText([("class:details.title", f"{left_pad}@{tweet.author}")]))
             lines.append(FormattedText([("", "")]))
 
             badges = []
@@ -131,37 +118,34 @@ class TweetDetailsControl(UIControl):
             if tweet.is_reply:
                 badges.append("💬 回复")
             if badges:
-                lines.append(FormattedText([("class:details.label", " ".join(badges))]))
+                lines.append(FormattedText([("class:details.label", f"{left_pad}{' '.join(badges)}")]))
                 lines.append(FormattedText([("", "")]))
 
-            local_time = format_local_datetime(tweet.timestamp)
             lines.append(
                 FormattedText(
                     [
-                        ("class:details.label", "发布时间: "),
-                        ("", local_time),
+                        ("class:details.label", f"{left_pad}发布时间: "),
+                        ("", format_local_datetime(tweet.timestamp)),
                     ]
                 )
             )
-
-            x_url = f"https://x.com/{tweet.author}/status/{tweet.id}"
             lines.append(
                 FormattedText(
                     [
-                        ("class:details.label", "URL: "),
-                        ("class:details.label", x_url),
+                        ("class:details.label", f"{left_pad}URL: "),
+                        ("class:details.label", f"https://x.com/{tweet.author}/status/{tweet.id}"),
                     ]
                 )
             )
             lines.append(FormattedText([("", "")]))
-            lines.append(FormattedText([("class:details.label", "---")]))
+            lines.append(FormattedText([("class:details.label", f"{left_pad}---")]))
             lines.append(FormattedText([("", "")]))
 
             content_lines = []
             words = tweet.content.split()
             current_line = ""
             current_width = 0
-            max_width = width - 2
+            max_width = detail_width
 
             for word in words:
                 word_width = _w(word)
@@ -177,28 +161,27 @@ class TweetDetailsControl(UIControl):
                         current_width = word_width
                     else:
                         chunk_chars = []
-                        chunk_w = 0
+                        chunk_width = 0
                         for ch in word:
-                            cw = _w(ch)
-                            if chunk_w + cw > max_width and chunk_chars:
+                            char_width = _w(ch)
+                            if chunk_width + char_width > max_width and chunk_chars:
                                 content_lines.append("".join(chunk_chars))
                                 chunk_chars = [ch]
-                                chunk_w = cw
+                                chunk_width = char_width
                             else:
                                 chunk_chars.append(ch)
-                                chunk_w += cw
+                                chunk_width += char_width
                         if chunk_chars:
                             content_lines.append("".join(chunk_chars))
                         current_line = ""
                         current_width = 0
-
             if current_line:
                 content_lines.append(current_line)
 
             for line in content_lines:
-                lines.append(FormattedText([("", " " + line)]))
+                lines.append(FormattedText([("", f"{left_pad}{line}")]))
 
-        offset = self.state.details_scroll_offset
+        offset = self.state.current_user_details_scroll_offset
         if offset > 0:
             lines = lines[offset:]
 

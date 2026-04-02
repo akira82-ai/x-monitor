@@ -28,19 +28,19 @@ def format_tweet_as_markdown(tweet: Tweet) -> str:
     return markdown
 
 
-def _mark_selected_as_read(state: AppState, monitor) -> None:
-    """Mark the selected tweet as read and clear the badge when nothing is unread."""
-    if state.selected_tweet and state.selected_tweet.is_new:
-        state.selected_tweet.is_new = False
-        state.recalculate_new_count()
-    if state.new_tweets_count == 0 and monitor:
-        monitor.notifier.clear_badge()
-        monitor.save_state()
-
-
 def _set_status(state: AppState, message: str) -> None:
-    """Set a short-lived status message."""
     state.set_status(message, datetime.now(timezone.utc))
+
+
+def _mark_selected_as_read(state: AppState, monitor) -> None:
+    """Mark the selected post as read and persist badge changes if needed."""
+    tweet = state.selected_tweet
+    if tweet and tweet.is_new:
+        state.mark_selected_as_read()
+        if monitor:
+            if state.new_tweets_count == 0:
+                monitor.notifier.clear_badge()
+            monitor.save_state()
 
 
 def create_key_bindings(
@@ -49,106 +49,89 @@ def create_key_bindings(
     search_overlay,
     layout_factory: Callable[[AppState, Config], object],
 ) -> KeyBindings:
-    """Create keyboard shortcuts."""
+    """Create keyboard shortcuts for the three-column UI."""
     kb = KeyBindings()
-    not_searching_filter = search_overlay.not_searching_filter
 
-    @kb.add("j", filter=not_searching_filter)
-    @kb.add("down", filter=not_searching_filter)
+    @kb.add("tab")
     def _(event):
-        state.select_next()
-        state.details_scroll_offset = 0
-        _mark_selected_as_read(state, monitor)
+        columns = ["users", "posts", "details"]
+        current_index = columns.index(state.ui.focus_column)
+        state.ui.focus_column = columns[(current_index + 1) % len(columns)]
         event.app.invalidate()
 
-    @kb.add("k", filter=not_searching_filter)
-    @kb.add("up", filter=not_searching_filter)
+    @kb.add("s-tab")
     def _(event):
-        state.select_previous()
-        state.details_scroll_offset = 0
-        _mark_selected_as_read(state, monitor)
+        columns = ["users", "posts", "details"]
+        current_index = columns.index(state.ui.focus_column)
+        state.ui.focus_column = columns[(current_index - 1) % len(columns)]
         event.app.invalidate()
 
-    @kb.add("right", filter=not_searching_filter)
-    @kb.add("pagedown", filter=not_searching_filter)
+    @kb.add("j")
+    @kb.add("down")
     def _(event):
-        state.next_page()
-        state.details_scroll_offset = 0
-        _mark_selected_as_read(state, monitor)
+        if state.ui.focus_column == "users":
+            state.select_next_user()
+            state.current_user_details_scroll_offset = 0
+        elif state.ui.focus_column == "posts":
+            state.select_next()
+            state.current_user_details_scroll_offset = 0
+            _mark_selected_as_read(state, monitor)
         event.app.invalidate()
 
-    @kb.add("left", filter=not_searching_filter)
-    @kb.add("pageup", filter=not_searching_filter)
+    @kb.add("k")
+    @kb.add("up")
     def _(event):
-        state.prev_page()
-        state.details_scroll_offset = 0
-        _mark_selected_as_read(state, monitor)
+        if state.ui.focus_column == "users":
+            state.select_previous_user()
+            state.current_user_details_scroll_offset = 0
+        elif state.ui.focus_column == "posts":
+            state.select_previous()
+            state.current_user_details_scroll_offset = 0
+            _mark_selected_as_read(state, monitor)
         event.app.invalidate()
 
-    @kb.add("q", filter=not_searching_filter)
-    @kb.add("c-c", filter=not_searching_filter)
+    @kb.add("right")
+    @kb.add("pagedown")
+    def _(event):
+        if state.ui.focus_column == "posts":
+            state.next_page()
+            state.current_user_details_scroll_offset = 0
+            _mark_selected_as_read(state, monitor)
+            event.app.invalidate()
+
+    @kb.add("left")
+    @kb.add("pageup")
+    def _(event):
+        if state.ui.focus_column == "posts":
+            state.prev_page()
+            state.current_user_details_scroll_offset = 0
+            _mark_selected_as_read(state, monitor)
+            event.app.invalidate()
+
+    @kb.add("q")
+    @kb.add("c-c")
     def _(event):
         event.app.exit()
 
-    @kb.add("/", filter=not_searching_filter)
-    def _(event):
-        app = event.app
-        state.search_visible = True
-
-        search_overlay.buffer.text = ""
-        search_overlay.buffer.state = state
-        search_overlay.buffer.cursor_position = 0
-
-        config = search_overlay.current_config
-        if config:
-            app.layout = layout_factory(state, config)
-
-        focused = False
-        for container in app.layout.find_all_windows():
-            if hasattr(container, "content") and container.content == search_overlay.control:
-                try:
-                    app.layout.focus(container)
-                    focused = True
-                    break
-                except ValueError:
-                    pass
-        if not focused:
-            try:
-                app.layout.focus_next()
-            except Exception:
-                pass
-        app.invalidate()
-
-    @kb.add("u", filter=not_searching_filter)
-    def _(event):
-        if state.filter_user:
-            state.clear_filters()
-            _set_status(state, "已清除用户过滤")
-        elif state.selected_tweet:
-            target_user = state.selected_tweet.author
-            state.apply_user_filter(target_user)
-            _set_status(state, f"仅显示 @{target_user} 的推文")
-
-        event.app.invalidate()
-
-    @kb.add("o", filter=not_searching_filter)
+    @kb.add("o")
     def _(event):
         import webbrowser
 
-        if state.selected_tweet:
-            url = f"https://x.com/{state.selected_tweet.author}/status/{state.selected_tweet.id}"
+        tweet = state.selected_tweet
+        if tweet:
+            url = f"https://x.com/{tweet.author}/status/{tweet.id}"
             webbrowser.open(url)
             _set_status(state, f"已打开: {url}")
         event.app.invalidate()
 
-    @kb.add("c", filter=not_searching_filter)
+    @kb.add("c")
     def _(event):
-        if state.selected_tweet:
+        tweet = state.selected_tweet
+        if tweet:
             try:
                 import pyperclip
 
-                markdown = format_tweet_as_markdown(state.selected_tweet)
-                pyperclip.copy(markdown)
+                pyperclip.copy(format_tweet_as_markdown(tweet))
                 _set_status(state, "已复制到剪贴板 (Markdown)")
             except ImportError:
                 _set_status(state, "错误: 未安装 pyperclip 库")
@@ -156,17 +139,19 @@ def create_key_bindings(
                 _set_status(state, f"复制失败: {str(exc)}")
         event.app.invalidate()
 
-    @kb.add("escape", "down", filter=not_searching_filter)
+    @kb.add("escape", "down")
     def _(event):
-        state.details_scroll_offset += 1
-        event.app.invalidate()
+        if state.ui.focus_column == "details":
+            state.current_user_details_scroll_offset += 1
+            event.app.invalidate()
 
-    @kb.add("escape", "up", filter=not_searching_filter)
+    @kb.add("escape", "up")
     def _(event):
-        state.details_scroll_offset = max(0, state.details_scroll_offset - 1)
-        event.app.invalidate()
+        if state.ui.focus_column == "details":
+            state.current_user_details_scroll_offset = max(0, state.current_user_details_scroll_offset - 1)
+            event.app.invalidate()
 
-    @kb.add("escape", "r", filter=not_searching_filter)
+    @kb.add("escape", "r")
     def _(event):
         if monitor:
             state.mark_all_as_read()

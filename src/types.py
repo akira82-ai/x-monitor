@@ -108,16 +108,46 @@ class TimelineState:
 class UiState:
     """Presentation state for the terminal UI."""
 
-    selected_index: int = 0
-    current_page: int = 0
     page_size: int = 10
     paused: bool = False
     filter_keyword: Optional[str] = None
     filter_user: Optional[str] = None
     unfiltered_tweets: Optional[List[Tweet]] = None
-    details_scroll_offset: int = 0
     is_loading: bool = False
     search_visible: bool = False
+    monitored_handles: List[str] = field(default_factory=list)
+    selected_user_index: int = 0
+    focus_column: str = "users"
+    per_user_selected_post_index: dict = field(default_factory=dict)
+    per_user_current_page: dict = field(default_factory=dict)
+    per_user_details_scroll_offset: dict = field(default_factory=dict)
+
+    @property
+    def selected_index(self) -> int:
+        """Backward-compatible alias for the old single-list selection index."""
+        return self.selected_user_index
+
+    @selected_index.setter
+    def selected_index(self, value: int) -> None:
+        self.selected_user_index = value
+
+    @property
+    def current_page(self) -> int:
+        """Backward-compatible alias for the old single-list current page."""
+        return self.selected_user_index
+
+    @current_page.setter
+    def current_page(self, value: int) -> None:
+        self.selected_user_index = value
+
+    @property
+    def details_scroll_offset(self) -> int:
+        """Backward-compatible alias for the old single-list detail offset."""
+        return self.selected_user_index
+
+    @details_scroll_offset.setter
+    def details_scroll_offset(self, value: int) -> None:
+        self.selected_user_index = value
 
 
 @dataclass
@@ -159,16 +189,16 @@ class AppState:
             "last_poll": ("timeline", "last_poll"),
             "new_tweets_count": ("timeline", "new_tweets_count"),
             "current_instance": ("timeline", "current_instance"),
-            "selected_index": ("ui", "selected_index"),
-            "current_page": ("ui", "current_page"),
             "page_size": ("ui", "page_size"),
             "paused": ("ui", "paused"),
             "filter_keyword": ("ui", "filter_keyword"),
             "filter_user": ("ui", "filter_user"),
             "unfiltered_tweets": ("ui", "unfiltered_tweets"),
-            "details_scroll_offset": ("ui", "details_scroll_offset"),
             "is_loading": ("ui", "is_loading"),
             "search_visible": ("ui", "search_visible"),
+            "selected_index": ("ui", "selected_user_index"),
+            "current_page": ("ui", "selected_user_index"),
+            "details_scroll_offset": ("ui", "selected_user_index"),
             "status_message": ("feedback", "status_message"),
             "status_message_timestamp": ("feedback", "status_message_timestamp"),
             "error_message": ("feedback", "error_message"),
@@ -223,19 +253,29 @@ class AppState:
 
     @property
     def selected_index(self) -> int:
-        return self.ui.selected_index
+        if self.current_user is None:
+            return self.ui.selected_user_index
+        return self.current_post_index
 
     @selected_index.setter
     def selected_index(self, value: int) -> None:
-        self.ui.selected_index = value
+        if self.current_user is None:
+            self.ui.selected_user_index = value
+        else:
+            self.current_post_index = value
 
     @property
     def current_page(self) -> int:
-        return self.ui.current_page
+        if self.current_user is None:
+            return self.ui.selected_user_index
+        return self.current_user_page
 
     @current_page.setter
     def current_page(self, value: int) -> None:
-        self.ui.current_page = value
+        if self.current_user is None:
+            self.ui.selected_user_index = value
+        else:
+            self.current_user_page = value
 
     @property
     def page_size(self) -> int:
@@ -279,11 +319,16 @@ class AppState:
 
     @property
     def details_scroll_offset(self) -> int:
-        return self.ui.details_scroll_offset
+        if self.current_user is None:
+            return self.ui.selected_user_index
+        return self.current_user_details_scroll_offset
 
     @details_scroll_offset.setter
     def details_scroll_offset(self, value: int) -> None:
-        self.ui.details_scroll_offset = value
+        if self.current_user is None:
+            self.ui.selected_user_index = value
+        else:
+            self.current_user_details_scroll_offset = value
 
     @property
     def is_loading(self) -> bool:
@@ -377,6 +422,7 @@ class AppState:
 
         self.tweets.insert(0, tweet)
         self.new_tweets_count += 1
+        self.ensure_user_handles()
         return True
 
     def add_tweets(self, tweets: List[Tweet]) -> int:
@@ -386,7 +432,8 @@ class AppState:
             if self.add_tweet(tweet):
                 new_count += 1
         # Ensure page number is within valid range (since tweet count may have increased)
-        self._clamp_current_page()
+        self._clamp_current_user_page()
+        self._clamp_selected_post_index()
         return new_count
 
     def recalculate_new_count(self) -> None:
@@ -406,9 +453,9 @@ class AppState:
         self.tweets = [t for t in self.unfiltered_tweets if keyword_lower in t.content.lower()]
 
         # Reset selection state
-        self.selected_index = 0
-        self.current_page = 0
-        self.details_scroll_offset = 0
+        self.current_post_index = 0
+        self.current_user_page = 0
+        self.current_user_details_scroll_offset = 0
 
     def apply_user_filter(self, user: str) -> None:
         """Apply user filter - overrides any existing filter."""
@@ -422,9 +469,9 @@ class AppState:
         self.tweets = [t for t in self.unfiltered_tweets if t.author == user]
 
         # Reset selection state
-        self.selected_index = 0
-        self.current_page = 0
-        self.details_scroll_offset = 0
+        self.current_post_index = 0
+        self.current_user_page = 0
+        self.current_user_details_scroll_offset = 0
 
     def clear_filters(self) -> None:
         """Clear all filters and restore the full tweet list."""
@@ -434,102 +481,246 @@ class AppState:
 
         self.filter_keyword = None
         self.filter_user = None
-        self.selected_index = 0
-        self.current_page = 0
-        self.details_scroll_offset = 0
+        self.current_post_index = 0
+        self.current_user_page = 0
+        self.current_user_details_scroll_offset = 0
+
+    def set_monitored_handles(self, handles: List[str]) -> None:
+        """Update the configured handles shown in the left navigation."""
+        self.ui.monitored_handles = list(handles)
+        self.ensure_user_handles()
+        self._clamp_selected_user()
+
+    @property
+    def sorted_users(self) -> List[str]:
+        """Get monitored users sorted alphabetically."""
+        users = set(self.ui.monitored_handles)
+        users.update(tweet.author for tweet in self.tweets)
+        return sorted(users, key=str.lower)
+
+    def ensure_user_handles(self) -> None:
+        """Keep per-user UI state initialized for all visible users."""
+        for handle in self.sorted_users:
+            self.ui.per_user_selected_post_index.setdefault(handle, 0)
+            self.ui.per_user_current_page.setdefault(handle, 0)
+            self.ui.per_user_details_scroll_offset.setdefault(handle, 0)
+
+    def _clamp_selected_user(self) -> None:
+        """Ensure the selected user index remains in range."""
+        users = self.sorted_users
+        if not users:
+            self.ui.selected_user_index = 0
+            return
+        self.ui.selected_user_index = max(0, min(self.ui.selected_user_index, len(users) - 1))
+
+    @property
+    def current_user(self) -> Optional[str]:
+        """Get the currently selected user."""
+        users = self.sorted_users
+        if not users:
+            return None
+        self._clamp_selected_user()
+        return users[self.ui.selected_user_index]
+
+    @property
+    def current_user_tweets(self) -> List[Tweet]:
+        """Get tweets for the selected user in newest-first order."""
+        handle = self.current_user
+        if not handle:
+            return []
+        tweets = [tweet for tweet in self.tweets if tweet.author == handle]
+        return sorted(tweets, key=lambda tweet: tweet.timestamp, reverse=True)
+
+    def unread_count_for_user(self, handle: str) -> int:
+        """Return the unread count for one user."""
+        return sum(1 for tweet in self.tweets if tweet.author == handle and tweet.is_new)
+
+    @property
+    def current_post_index(self) -> int:
+        """Get the selected post index for the current user."""
+        handle = self.current_user
+        if not handle:
+            return 0
+        self.ensure_user_handles()
+        return self.ui.per_user_selected_post_index[handle]
+
+    @current_post_index.setter
+    def current_post_index(self, value: int) -> None:
+        handle = self.current_user
+        if not handle:
+            return
+        self.ensure_user_handles()
+        self.ui.per_user_selected_post_index[handle] = value
+        self._clamp_selected_post_index()
+
+    @property
+    def current_user_page(self) -> int:
+        """Get the current page for the selected user's posts."""
+        handle = self.current_user
+        if not handle:
+            return 0
+        self.ensure_user_handles()
+        return self.ui.per_user_current_page[handle]
+
+    @current_user_page.setter
+    def current_user_page(self, value: int) -> None:
+        handle = self.current_user
+        if not handle:
+            return
+        self.ensure_user_handles()
+        self.ui.per_user_current_page[handle] = value
+        self._clamp_current_user_page()
+
+    @property
+    def current_user_details_scroll_offset(self) -> int:
+        """Get the details scroll offset for the current user."""
+        handle = self.current_user
+        if not handle:
+            return 0
+        self.ensure_user_handles()
+        return self.ui.per_user_details_scroll_offset[handle]
+
+    @current_user_details_scroll_offset.setter
+    def current_user_details_scroll_offset(self, value: int) -> None:
+        handle = self.current_user
+        if not handle:
+            return
+        self.ensure_user_handles()
+        self.ui.per_user_details_scroll_offset[handle] = max(0, value)
+
+    @property
+    def current_user_total_pages(self) -> int:
+        """Get total pages for the selected user's posts."""
+        tweets = self.current_user_tweets
+        if not tweets or self.page_size <= 0:
+            return 0
+        return (len(tweets) - 1) // self.page_size + 1
+
+    def _clamp_selected_post_index(self) -> None:
+        """Keep the current user's selected post index in range."""
+        tweets = self.current_user_tweets
+        handle = self.current_user
+        if handle is None or self.page_size <= 0 or not tweets:
+            if handle is not None:
+                self.ui.per_user_selected_post_index[handle] = 0
+            return
+        max_index = len(tweets) - 1
+        self.ui.per_user_selected_post_index[handle] = max(
+            0,
+            min(self.ui.per_user_selected_post_index[handle], max_index),
+        )
+        self.ui.per_user_current_page[handle] = self.ui.per_user_selected_post_index[handle] // self.page_size
+
+    def _clamp_current_user_page(self) -> None:
+        """Keep the current user's page index in range without changing selection."""
+        tweets = self.current_user_tweets
+        handle = self.current_user
+        if handle is None or self.page_size <= 0 or not tweets:
+            if handle is not None:
+                self.ui.per_user_current_page[handle] = 0
+            return
+        max_page = max(0, (len(tweets) - 1) // self.page_size)
+        self.ui.per_user_current_page[handle] = max(
+            0,
+            min(self.ui.per_user_current_page[handle], max_page),
+        )
+
+    def select_next_user(self) -> None:
+        """Select the next user in the left navigation."""
+        users = self.sorted_users
+        if not users:
+            return
+        if self.ui.selected_user_index < len(users) - 1:
+            self.ui.selected_user_index += 1
+        self._clamp_current_user_page()
+        self._clamp_selected_post_index()
+
+    def select_previous_user(self) -> None:
+        """Select the previous user in the left navigation."""
+        if self.ui.selected_user_index > 0:
+            self.ui.selected_user_index -= 1
+        self._clamp_current_user_page()
+        self._clamp_selected_post_index()
 
     @property
     def selected_tweet(self) -> Optional[Tweet]:
         """Get the currently selected tweet."""
-        if 0 <= self.selected_index < len(self.tweets):
-            return self.tweets[self.selected_index]
+        tweets = self.current_user_tweets
+        if 0 <= self.current_post_index < len(tweets):
+            return tweets[self.current_post_index]
         return None
 
     def select_next(self) -> None:
         """Select the next tweet."""
-        if self.selected_index < len(self.tweets) - 1:
-            self.selected_index += 1
-            # Auto page turn
-            if self.page_size > 0 and self.selected_index >= (self.current_page + 1) * self.page_size:
-                max_page = max(0, (len(self.tweets) - 1) // self.page_size)
-                self.current_page = min(self.current_page + 1, max_page)
+        tweets = self.current_user_tweets
+        if self.current_post_index < len(tweets) - 1:
+            self.current_post_index += 1
+            if self.page_size > 0 and self.current_post_index >= (self.current_user_page + 1) * self.page_size:
+                max_page = max(0, (len(tweets) - 1) // self.page_size)
+                self.current_user_page = min(self.current_user_page + 1, max_page)
 
     def select_previous(self) -> None:
         """Select the previous tweet."""
-        if self.selected_index > 0:
-            self.selected_index -= 1
-            # 自动翻页
-            if self.page_size > 0 and self.selected_index < self.current_page * self.page_size:
-                self.current_page = max(self.current_page - 1, 0)
+        if self.current_post_index > 0:
+            self.current_post_index -= 1
+            if self.page_size > 0 and self.current_post_index < self.current_user_page * self.page_size:
+                self.current_user_page = max(self.current_user_page - 1, 0)
 
     def select_first(self) -> None:
         """Select the first tweet."""
-        self.selected_index = 0
-        self.current_page = 0
+        self.current_post_index = 0
+        self.current_user_page = 0
 
     def select_last(self) -> None:
         """Select the last tweet."""
-        if self.tweets:
-            self.selected_index = len(self.tweets) - 1
-            # 确保页码不超过最大值
-            max_page = max(0, (len(self.tweets) - 1) // self.page_size)
-            self.current_page = min(self.selected_index // self.page_size, max_page)
+        tweets = self.current_user_tweets
+        if tweets:
+            self.current_post_index = len(tweets) - 1
+            max_page = max(0, (len(tweets) - 1) // self.page_size)
+            self.current_user_page = min(self.current_post_index // self.page_size, max_page)
 
     def next_page(self) -> None:
         """Go to next page."""
-        if not self.tweets:
+        tweets = self.current_user_tweets
+        if not tweets:
             return
-        max_page = (len(self.tweets) - 1) // self.page_size
-        if self.current_page < max_page:
-            self.current_page += 1
-            self.selected_index = min(self.current_page * self.page_size, len(self.tweets) - 1)
+        max_page = (len(tweets) - 1) // self.page_size
+        if self.current_user_page < max_page:
+            self.current_user_page += 1
+            self.current_post_index = min(self.current_user_page * self.page_size, len(tweets) - 1)
 
     def prev_page(self) -> None:
         """Go to previous page."""
-        if self.current_page > 0:
-            self.current_page -= 1
-            self.selected_index = max(0, min(self.current_page * self.page_size, len(self.tweets) - 1))
+        if self.current_user_page > 0:
+            self.current_user_page -= 1
+            tweets = self.current_user_tweets
+            self.current_post_index = max(0, min(self.current_user_page * self.page_size, len(tweets) - 1))
 
     def update_page_size(self, viewport_height: int) -> None:
         """Update page size based on viewport height."""
         if viewport_height > 0:
             self.page_size = viewport_height
-            # 确保页码和选中项在有效范围内
-            self._clamp_current_page()
+            self._clamp_current_user_page()
+            self._clamp_selected_post_index()
 
     @property
     def total_pages(self) -> int:
         """Get total number of pages."""
-        if not self.tweets or self.page_size <= 0:
-            return 0
-        return (len(self.tweets) - 1) // self.page_size + 1
+        return self.current_user_total_pages
 
     def _clamp_current_page(self) -> None:
         """确保 current_page 在有效范围内."""
-        if not self.tweets or self.page_size <= 0:
-            self.current_page = 0
-            return
-
-        max_page = max(0, (len(self.tweets) - 1) // self.page_size)
-        self.current_page = max(0, min(self.current_page, max_page))
-
-        # 同时确保 selected_index 在有效范围内
-        if self.tweets:
-            self.selected_index = max(0, min(self.selected_index, len(self.tweets) - 1))
-        else:
-            self.selected_index = 0
+        self._clamp_current_user_page()
+        self._clamp_selected_post_index()
 
     def ensure_visible(self, viewport_height: int) -> None:
         """Ensure selected item is visible in viewport."""
-        # 更新页面大小
         self.update_page_size(viewport_height)
-        # 确保选中项在当前页
-        if self.tweets and self.page_size > 0:
-            target_page = self.selected_index // self.page_size
-            # 将当前页设置为选中项所在的页
-            self.current_page = target_page
-            # 再次验证以确保在有效范围内
-            self._clamp_current_page()
+        tweets = self.current_user_tweets
+        if tweets and self.page_size > 0:
+            self.current_user_page = self.current_post_index // self.page_size
+            self._clamp_current_user_page()
+            self._clamp_selected_post_index()
 
     def reset_new_count(self) -> None:
         """Reset the new tweets counter."""
@@ -537,11 +728,10 @@ class AppState:
 
     def mark_selected_as_read(self) -> None:
         """将当前选中的推文标记为已读。"""
-        if 0 <= self.selected_index < len(self.tweets):
-            tweet = self.tweets[self.selected_index]
-            if tweet.is_new:
-                tweet.is_new = False
-                self.new_tweets_count = max(0, self.new_tweets_count - 1)
+        tweet = self.selected_tweet
+        if tweet and tweet.is_new:
+            tweet.is_new = False
+            self.recalculate_new_count()
 
     def mark_all_as_read(self) -> None:
         """将所有推文标记为已读。"""
@@ -553,30 +743,31 @@ class AppState:
         """Clear all tweets."""
         self.tweets.clear()
         self.known_ids.clear()
-        self.selected_index = 0
-        self.current_page = 0
+        self.ui.selected_user_index = 0
+        self.ui.per_user_selected_post_index.clear()
+        self.ui.per_user_current_page.clear()
+        self.ui.per_user_details_scroll_offset.clear()
         self.new_tweets_count = 0
         self.filter_keyword = None
         self.filter_user = None
         self.unfiltered_tweets = None
-        self.details_scroll_offset = 0
+        self.current_user_details_scroll_offset = 0
 
     def to_dict(self) -> dict:
         """将 AppState 转换为可序列化的字典."""
         return {
             "tweets": [t.to_dict() for t in self.tweets],
             "known_ids": list(self.known_ids),
-            "selected_index": self.selected_index,
-            "current_page": self.current_page,
             "page_size": self.page_size,
             "paused": self.paused,
             "last_poll": self.last_poll.isoformat() if self.last_poll else None,
             "status_message": self.status_message,
             "new_tweets_count": self.new_tweets_count,
-            "filter_keyword": self.filter_keyword,
-            "filter_user": self.filter_user,
-            "details_scroll_offset": self.details_scroll_offset,
-            # Note: unfiltered_tweets is not persisted (it's only used temporarily during filtering)
+            "selected_user_index": self.ui.selected_user_index,
+            "focus_column": self.ui.focus_column,
+            "per_user_selected_post_index": self.ui.per_user_selected_post_index,
+            "per_user_current_page": self.ui.per_user_current_page,
+            "per_user_details_scroll_offset": self.ui.per_user_details_scroll_offset,
         }
 
     @classmethod
@@ -589,13 +780,13 @@ class AppState:
             new_tweets_count=data.get("new_tweets_count", 0),
         )
         state.ui = UiState(
-            selected_index=data.get("selected_index", 0),
-            current_page=data.get("current_page", 0),
             page_size=data.get("page_size", 10),
             paused=data.get("paused", False),
-            filter_keyword=data.get("filter_keyword"),
-            filter_user=data.get("filter_user"),
-            details_scroll_offset=data.get("details_scroll_offset", 0),
+            selected_user_index=data.get("selected_user_index", 0),
+            focus_column=data.get("focus_column", "users"),
+            per_user_selected_post_index=data.get("per_user_selected_post_index", {}),
+            per_user_current_page=data.get("per_user_current_page", {}),
+            per_user_details_scroll_offset=data.get("per_user_details_scroll_offset", {}),
         )
         state.feedback = FeedbackState(
             status_message=data.get("status_message", "Initializing..."),
@@ -605,11 +796,11 @@ class AppState:
             from datetime import datetime, timezone
             state.last_poll = datetime.fromisoformat(data["last_poll"])
 
-        # Reset unfiltered_tweets (filters are not restored from saved state)
         state.unfiltered_tweets = None
-
-        # 确保 current_page 和 selected_index 在有效范围内
-        state._clamp_current_page()
+        state.ensure_user_handles()
+        state._clamp_selected_user()
+        state._clamp_current_user_page()
+        state._clamp_selected_post_index()
 
         # 清理过期的未读标记
         state._cleanup_old_new_tweets()
