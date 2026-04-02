@@ -34,6 +34,12 @@ def invoke_binding(kb, key, event) -> None:
     binding.handler(event)
 
 
+def invoke_binding_sequence(kb, keys, event) -> None:
+    """Invoke one binding handler by a prompt-toolkit key sequence."""
+    binding = kb.get_bindings_for_keys(keys)[0]
+    binding.handler(event)
+
+
 def make_event():
     """Create a lightweight app event stub."""
     app = SimpleNamespace(invalidate=Mock(), exit=Mock())
@@ -110,8 +116,8 @@ def test_selecting_post_marks_it_read_and_reduces_unread_count():
     assert state.unread_count_for_user("dotey") == 1
 
 
-def test_tab_cycles_focus_and_right_only_pages_posts():
-    """Tab should cycle columns and left/right paging should only work in posts."""
+def test_tab_cycles_focus_between_users_and_posts_only():
+    """Tab should only move between the left and middle columns."""
     state = AppState(
         tweets=[
             make_tweet("1", "dotey", minutes_ago=1),
@@ -131,10 +137,25 @@ def test_tab_cycles_focus_and_right_only_pages_posts():
     assert state.current_user_page == 1
 
     invoke_binding(kb, Keys.ControlI, event)
-    assert state.ui.focus_column == "details"
+    assert state.ui.focus_column == "users"
 
     invoke_binding(kb, Keys.Right, event)
     assert state.current_user_page == 1
+
+
+def test_alt_arrow_scrolls_details_without_detail_focus():
+    """Detail scrolling should remain available after removing right-column focus."""
+    state = AppState(tweets=[make_tweet("1", "dotey", minutes_ago=1)])
+    state.set_monitored_handles(["dotey"])
+    state.ui.focus_column = "posts"
+    kb = create_key_bindings(state=state, monitor=None, search_overlay=None, layout_factory=lambda *_: None)
+    event = make_event()
+
+    invoke_binding_sequence(kb, (Keys.Escape, Keys.Down), event)
+    assert state.current_user_details_scroll_offset == 1
+
+    invoke_binding_sequence(kb, (Keys.Escape, Keys.Up), event)
+    assert state.current_user_details_scroll_offset == 0
 
 
 def test_layout_footer_no_longer_mentions_search():
@@ -147,7 +168,7 @@ def test_layout_footer_no_longer_mentions_search():
     footer_window = layout.container.children[-1]
     footer_text = footer_window.content.text()
 
-    assert "Tab切栏" in footer_text
+    assert "Tab左中切栏" in footer_text
     assert "/:搜索" not in footer_text
 
 

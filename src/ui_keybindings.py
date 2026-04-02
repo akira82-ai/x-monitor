@@ -51,19 +51,24 @@ def create_key_bindings(
 ) -> KeyBindings:
     """Create keyboard shortcuts for the three-column UI."""
     kb = KeyBindings()
+    focusable_columns = ["users", "posts"]
+
+    def _cycle_focus(step: int) -> None:
+        current_column = state.ui.focus_column
+        if current_column not in focusable_columns:
+            state.ui.focus_column = "posts"
+            return
+        current_index = focusable_columns.index(current_column)
+        state.ui.focus_column = focusable_columns[(current_index + step) % len(focusable_columns)]
 
     @kb.add("tab")
     def _(event):
-        columns = ["users", "posts", "details"]
-        current_index = columns.index(state.ui.focus_column)
-        state.ui.focus_column = columns[(current_index + 1) % len(columns)]
+        _cycle_focus(1)
         event.app.invalidate()
 
     @kb.add("s-tab")
     def _(event):
-        columns = ["users", "posts", "details"]
-        current_index = columns.index(state.ui.focus_column)
-        state.ui.focus_column = columns[(current_index - 1) % len(columns)]
+        _cycle_focus(-1)
         event.app.invalidate()
 
     @kb.add("j")
@@ -141,13 +146,13 @@ def create_key_bindings(
 
     @kb.add("escape", "down")
     def _(event):
-        if state.ui.focus_column == "details":
+        if state.selected_tweet:
             state.current_user_details_scroll_offset += 1
             event.app.invalidate()
 
     @kb.add("escape", "up")
     def _(event):
-        if state.ui.focus_column == "details":
+        if state.selected_tweet:
             state.current_user_details_scroll_offset = max(0, state.current_user_details_scroll_offset - 1)
             event.app.invalidate()
 

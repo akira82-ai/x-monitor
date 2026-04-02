@@ -94,7 +94,7 @@ def create_layout(
     footer = Window(
         content=FormattedTextControl(
             lambda: (
-                "Tab切栏  ↑↓选择  ←→翻页  Alt+↑↓滚动详情  "
+                "Tab左中切栏  ↑↓选择  ←→翻页  Alt+↑↓滚动详情  "
                 "o打开URL  c复制  Esc+R全部已读  q退出"
             )
         ),
